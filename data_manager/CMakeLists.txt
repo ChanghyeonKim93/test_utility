@@ -13,5 +13,5 @@ include_directories(${Eigen3_INCLUDE_DIRS})
 
 set(SRC ${SRC} )
 
-add_executable(key_value_data_manager main.cc ${SRC})
+add_executable(generic_key_value_data_manager main.cc ${SRC})
 # target_link_directories(key_value_data_manager ${Eigen3_LIBRARIES})

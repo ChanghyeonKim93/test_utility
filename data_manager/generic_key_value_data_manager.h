@@ -58,4 +58,4 @@ class GenericKeyValueDataManager {
   std::unordered_map<std::type_index, void*> data_map_ptrs_for_each_types_;
 };
 
-#endif
+#endif  // GENERIC_KEY_VALUE_DATA_MANAGER_H_
