@@ -14,7 +14,7 @@
 
 class WorkerThreadPool {
  public:
-  enum WorkerThreadPoolStatus { kRun = 0, kKill = 1 };
+  enum class WorkerThreadPoolStatus { kRun = 0, kKill = 1 };
 
  public:
   explicit WorkerThreadPool(const int num_thread);
