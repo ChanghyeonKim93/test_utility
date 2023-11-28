@@ -41,7 +41,9 @@ class BlockCholeskyDecomposer {
       D_[index].setZero();
   }
 
-  void DecomposeMatrix(
+  /// @brief Decompose block full matrix
+  /// @param block_full_matrix
+  BlockCholeskyDecomposer& DecomposeMatrix(
       const std::vector<std::vector<BlockMatrix>>& block_full_matrix) {
     if (block_full_matrix.size() != NumBlocks ||
         block_full_matrix.front().size() != NumBlocks) {
@@ -79,10 +81,35 @@ class BlockCholeskyDecomposer {
         L_[i][j] = (A[i][j] - mat_sum) * D_[j].inverse();
       }
     }
+
+    return *this;
   }
 
+  std::vector<BlockVector> SolveLinearEquation(
+      const std::vector<BlockVector>& block_vector_in_rhs) {
+    // Solve A*x = b --> L*D*L'*x = b
+    // Step 1)
+    //  Define y = D*L'*x, and solve L*y = b w.r.t. y by forward substitution
+    // Step 2)
+    //  Define z = L'*x, and solve D*z = y w.r.t. z (D is block diagonal.)
+    // Step 3)
+    //  Solve L'*x = z w.r.t. x by backward substitution
+
+    // TODO(Changhyeon Kim): implement solver.
+    const auto& b = block_vector_in_rhs;
+    std::vector<BlockVector> x(NumBlocks);
+    for (int index = 0; index < NumBlocks; ++index)  //
+      x[index].setZero();
+
+    return x;
+  }
+
+  /// @brief Get lower block triangle matrix of LDLt
+  /// @return lower block triangle matrix of LDLt
   const std::vector<std::vector<BlockMatrix>>& GetMatrixL() const { return L_; }
 
+  /// @brief Get block diagonal matrix of LDLt
+  /// @return block diagonal matrix of LDLt
   const std::vector<BlockMatrix>& GetMatrixD() const { return D_; }
 
  private:

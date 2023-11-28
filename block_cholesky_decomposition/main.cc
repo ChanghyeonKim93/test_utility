@@ -7,8 +7,10 @@
 #include "block_cholesky_decomposer.h"
 
 using Mat33 = Eigen::Matrix<double, 3, 3>;
+using Vec3 = Eigen::Matrix<double, 3, 1>;
 using BlockFullMat33 = std::vector<std::vector<Mat33>>;
 using BlockDiagMat33 = std::vector<Mat33>;
+using BlockVector3 = std::vector<Vec3>;
 
 int main() {
   constexpr int kNumBlocks{4};
@@ -21,7 +23,9 @@ int main() {
     }
   }
 
+  BlockVector3 b(kNumBlocks);
   for (int row = 0; row < kNumBlocks; ++row) {
+    b[row].setRandom();
     for (int col = row; col < kNumBlocks; ++col) {
       Mat33 rand_mat;
       rand_mat.setRandom();
@@ -91,7 +95,7 @@ int main() {
   auto A_large_1 = L_mat * D_mat * L_mat.transpose();
   std::cerr << "A_large diff:\n" << A_large_true - A_large_1 << std::endl;
   //
-  chol_ldlt.DecomposeMatrix(A);
+  const auto x2 = chol_ldlt.DecomposeMatrix(A).SolveLinearEquation(b);
   const auto L2 = chol_ldlt.GetMatrixL();
   const auto D2 = chol_ldlt.GetMatrixD();
 
