@@ -1,3 +1,4 @@
+
 #include <iostream>
 #include <vector>
 
@@ -5,6 +6,7 @@
 #include "eigen3/Eigen/Dense"
 
 #include "block_cholesky_decomposer.h"
+#include "timer.h"
 
 using Mat33 = Eigen::Matrix<double, 3, 3>;
 using Vec3 = Eigen::Matrix<double, 3, 1>;
@@ -13,8 +15,9 @@ using BlockDiagMat33 = std::vector<Mat33>;
 using BlockVector3 = std::vector<Vec3>;
 
 int main() {
-  constexpr int kNumBlocks{4};
-  BlockCholeskyDecomposer<double, 3, 4> chol_ldlt;
+  const int kDimensionOfBlock{3};
+  const int kNumBlocks{41};
+  BlockCholeskyDecomposer<double, kDimensionOfBlock, kNumBlocks> chol_ldlt;
 
   BlockFullMat33 A(kNumBlocks, std::vector<Mat33>(kNumBlocks));
   for (int row = 0; row < kNumBlocks; ++row) {
@@ -36,19 +39,20 @@ int main() {
   }
 
   Eigen::Matrix<double, 3 * kNumBlocks, 3 * kNumBlocks> A_large_true;
+  Eigen::Matrix<double, 3 * kNumBlocks, 1> b_large_true;
   for (int row = 0; row < kNumBlocks; ++row) {
+    b_large_true.block<3, 1>(3 * row, 0) = b[row];
     for (int col = 0; col < kNumBlocks; ++col) {
       A_large_true.block<3, 3>(3 * row, 3 * col) = A[row][col];
     }
   }
+  const Eigen::Matrix<double, 3 * kNumBlocks, 1> x_large_true =
+      A_large_true.inverse() * b_large_true;
 
-  std::cerr << A_large_true << std::endl;
+  timer::tic();
   Eigen::LDLT<Eigen::MatrixXd> ldlt;
   ldlt.compute(A_large_true);
-
-  std::cerr << "L matrix:\n";
-  ldlt.matrixL();
-  std::cerr << "D matrix:\n" << ldlt.vectorD() << std::endl;
+  timer::toc(1);
 
   BlockFullMat33 L(kNumBlocks, std::vector<Mat33>(kNumBlocks));
   for (int row = 0; row < kNumBlocks; ++row) {
@@ -93,9 +97,11 @@ int main() {
   }
 
   auto A_large_1 = L_mat * D_mat * L_mat.transpose();
-  std::cerr << "A_large diff:\n" << A_large_true - A_large_1 << std::endl;
+  // std::cerr << "A_large diff:\n" << A_large_true - A_large_1 << std::endl;
   //
+  timer::tic();
   const auto x2 = chol_ldlt.DecomposeMatrix(A).SolveLinearEquation(b);
+  timer::toc(1);
   const auto L2 = chol_ldlt.GetMatrixL();
   const auto D2 = chol_ldlt.GetMatrixD();
 
@@ -111,8 +117,11 @@ int main() {
   }
 
   auto A_large_2 = L_mat2 * D_mat2 * L_mat2.transpose();
-  std::cerr << "A_large diff:\n" << A_large_true - A_large_2 << std::endl;
-  std::cerr << "D_mat diff:\n" << D_mat - D_mat2 << std::endl;
+  // std::cerr << "A_large diff:\n" << A_large_true - A_large_2 << std::endl;
+  // std::cerr << "D_mat diff:\n" << D_mat - D_mat2 << std::endl;
+  // for (int i = 0; i < kNumBlocks; ++i) {
+  //   std::cerr << (x2[i] - x_large_true.block<3, 1>(3 * i, 0)) << std::endl;
+  // }
 
   return 0;
 }

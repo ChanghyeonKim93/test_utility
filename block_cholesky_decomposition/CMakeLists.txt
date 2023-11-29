@@ -10,6 +10,7 @@ find_package(Eigen3 REQUIRED)
 include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${Eigen3_INCLUDE_DIRS})
 
-set(SRC ${SRC} )
+set(SRC ${SRC} 
+timer.cpp)
 
 add_executable(block_cholesky_decomposition main.cc ${SRC})
