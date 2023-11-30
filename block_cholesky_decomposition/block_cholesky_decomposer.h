@@ -34,14 +34,15 @@ class BlockCholeskyDecomposer {
   /// @brief Reset the private storage
   void Reset() {
     for (int row = 0; row < NumBlocks; ++row) {
-      Lt_inv_[row].setZero();
       for (int col = 0; col < row; ++col) {
         L_[row][col].setZero();
       }
     }
 
-    for (int index = 0; index < NumBlocks; ++index)  //
-      D_[index].setZero();
+    for (int row = 0; row < NumBlocks; ++row) {
+      D_[row].setZero();
+      Dinv_[row].setZero();
+    }
   }
 
   /// @brief Decompose block full matrix
@@ -57,33 +58,33 @@ class BlockCholeskyDecomposer {
 
     Reset();
 
+    const auto M = NumBlocks;
     const auto& A = block_full_matrix;
-    // for (int row = 0; row < NumBlocks; ++row) {
-    //   for (int col = 0; col < NumBlocks; ++col) {
-    //     std::cerr << A[row][col] << std::endl;
-    //   }
-    // }
-    for (int j = 0; j < NumBlocks; j++) {
-      BlockMatrix mat_sum;
-      mat_sum.setZero();
-      for (int k = 0; k < j; ++k) {
-        const auto& Ljk = L_[j][k];
-        const auto& Dk = D_[k];
-        mat_sum += Ljk * Dk * Ljk.transpose();
-      }
-      D_[j] = A[j][j] - mat_sum;
 
-      for (int i = j; i < NumBlocks; ++i) {
-        mat_sum.setZero();
+    for (int i = 0; i < M; i++) L_[i][i].setIdentity();
+
+    for (int i = 0; i < M; i++) {
+      for (int j = 0; j < i; ++j) {
+        BlockMatrix sum_Lik_Dk_Ljkt;
+        sum_Lik_Dk_Ljkt.setZero();
         for (int k = 0; k < j; ++k) {
           const auto& Lik = L_[i][k];
           const auto& Ljk = L_[j][k];
           const auto& Dk = D_[k];
-          mat_sum += Lik * Dk * Ljk.transpose();
+          sum_Lik_Dk_Ljkt.noalias() += Lik * Dk * Ljk.transpose();
         }
-        L_[i][j] = (A[i][j] - mat_sum) * D_[j].inverse();
-        if (i == j) Lt_inv_[i] = L_[i][i].transpose().inverse();
+        L_[i][j] = (A[i][j] - sum_Lik_Dk_Ljkt) * Dinv_[j];
       }
+
+      BlockMatrix sum_Lik_Dk_Likt;
+      sum_Lik_Dk_Likt.setZero();
+      for (int k = 0; k < i; ++k) {
+        const auto& Lik = L_[i][k];
+        const auto& Dk = D_[k];
+        sum_Lik_Dk_Likt.noalias() += Lik * Dk * Lik.transpose();
+      }
+      D_[i] = A[i][i] - sum_Lik_Dk_Likt;
+      Dinv_[i] = D_[i].inverse();
     }
 
     return *this;
@@ -106,36 +107,33 @@ class BlockCholeskyDecomposer {
 
     // 1) Forward substitution
     // zi = Lii^{-1}*(bi - sum_{j=0}^{i-1} Lij*zj)
-    std::vector<BlockVector> z(NumBlocks);
+    const auto M = NumBlocks;
+    std::vector<BlockVector> z(M);
     BlockVector sum_Lz;
-    for (int i = 0; i < NumBlocks; ++i) {
+    for (int i = 0; i < M; ++i) {
       sum_Lz.setZero();
       for (int j = 0; j <= i - 1; ++j) {
         sum_Lz += L_[i][j] * z[j];
       }
-      // z[i] = L_[i][i].inverse() * (b[i] - sum_Lz);
-      z[i] = Lt_inv_[i].transpose() * (b[i] - sum_Lz);
+      z[i] = b[i] - sum_Lz;
     }
 
     // 2) Diagonal inverse
     // yi = Di^{-1} * zi
     auto& y = z;
-    // std::vector<BlockVector> y(NumBlocks);
-    for (int i = 0; i < NumBlocks; ++i) {
+    for (int i = 0; i < M; ++i) {
       y[i] = D_[i].inverse() * z[i];
     }
 
     // 3) Backward substitution
     // xi = {Lii^{\top}}^{-1} * (yi - sum_{j=i+1}^{N-1}(Lji^{\top}*xj) )
-    std::vector<BlockVector> x(NumBlocks);
-    for (int i = NumBlocks - 1; i >= 0; --i) {
+    std::vector<BlockVector> x(M);
+    for (int i = M - 1; i >= 0; --i) {
       sum_Lz.setZero();
-      for (int j = i + 1; j <= NumBlocks - 1; ++j) {
+      for (int j = i + 1; j <= M - 1; ++j) {
         sum_Lz += L_[j][i].transpose() * x[j];
       }
-      // x[i] = L_[i][i].transpose().inverse() * (y[i] - sum_Lz);
-      x[i] = Lt_inv_[i] * (y[i] - sum_Lz);
-      // x[i] = ((y[i] - sum_Lz).transpose() * L_[i][i].inverse()).transpose();
+      x[i] = y[i] - sum_Lz;
     }
 
     return x;
@@ -151,22 +149,23 @@ class BlockCholeskyDecomposer {
 
  private:
   void InitializeMatrices() {
-    Lt_inv_.resize(NumBlocks);
     L_.resize(NumBlocks);
     for (int row = 0; row < NumBlocks; ++row) {
-      Lt_inv_[row].setZero();
       L_[row].resize(row + 1);
-      for (int col = 0; col < row; ++col)  //
+      for (int col = 0; col <= row; ++col)  //
         L_[row][col].setZero();
     }
 
     D_.resize(NumBlocks);
-    for (int index = 0; index < NumBlocks; ++index)  //
-      D_[index].setZero();
+    Dinv_.resize(NumBlocks);
+    for (int row = 0; row < NumBlocks; ++row) {
+      Dinv_[row].setZero();
+      D_[row].setZero();
+    }
   }
 
  private:
   std::vector<std::vector<BlockMatrix>> L_;  // NumBlocks*(NumBlocks+1)/2
-  std::vector<BlockMatrix> Lt_inv_;          // NumBlocks*(NumBlocks+1)/2
   std::vector<BlockMatrix> D_;               // NumBlocks
+  std::vector<BlockMatrix> Dinv_;            // NumBlocks
 };

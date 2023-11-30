@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <vector>
 
@@ -8,120 +7,68 @@
 #include "block_cholesky_decomposer.h"
 #include "timer.h"
 
-using Mat33 = Eigen::Matrix<double, 3, 3>;
-using Vec3 = Eigen::Matrix<double, 3, 1>;
-using BlockFullMat33 = std::vector<std::vector<Mat33>>;
-using BlockDiagMat33 = std::vector<Mat33>;
-using BlockVector3 = std::vector<Vec3>;
-
 int main() {
-  const int kDimensionOfBlock{3};
-  const int kNumBlocks{41};
-  BlockCholeskyDecomposer<double, kDimensionOfBlock, kNumBlocks> chol_ldlt;
+  const int Dim{3};
+  const int M{22};
 
-  BlockFullMat33 A(kNumBlocks, std::vector<Mat33>(kNumBlocks));
-  for (int row = 0; row < kNumBlocks; ++row) {
-    for (int col = 0; col < kNumBlocks; ++col) {
-      A[row][col].setZero();
-    }
-  }
+  using BlockMatrix = Eigen::Matrix<double, Dim, Dim>;
+  using BlockVector = Eigen::Matrix<double, Dim, 1>;
 
-  BlockVector3 b(kNumBlocks);
-  for (int row = 0; row < kNumBlocks; ++row) {
+  std::vector<std::vector<BlockMatrix>> A(M, std::vector<BlockMatrix>(M));
+  std::vector<BlockVector> b(M);
+  for (int row = 0; row < M; ++row) {
     b[row].setRandom();
-    for (int col = row; col < kNumBlocks; ++col) {
-      Mat33 rand_mat;
+    for (int col = 0; col <= row; ++col) {
+      BlockMatrix rand_mat;
       rand_mat.setRandom();
-      A[row][col] = rand_mat.transpose() * rand_mat;
-
-      A[col][row] = A[row][col].transpose();
+      A[row][col] = (rand_mat.transpose() * rand_mat);
+      A[col][row].noalias() = A[row][col].transpose();
     }
   }
 
-  Eigen::Matrix<double, 3 * kNumBlocks, 3 * kNumBlocks> A_large_true;
-  Eigen::Matrix<double, 3 * kNumBlocks, 1> b_large_true;
-  for (int row = 0; row < kNumBlocks; ++row) {
-    b_large_true.block<3, 1>(3 * row, 0) = b[row];
-    for (int col = 0; col < kNumBlocks; ++col) {
-      A_large_true.block<3, 3>(3 * row, 3 * col) = A[row][col];
+  Eigen::MatrixXd A_large_true(Dim * M, Dim * M);
+  Eigen::MatrixXd b_large_true(Dim * M, 1);
+  for (int row = 0; row < M; ++row) {
+    b_large_true.block<Dim, 1>(Dim * row, 0) = b[row];
+    for (int col = 0; col < M; ++col) {
+      A_large_true.block<Dim, Dim>(Dim * row, Dim * col) = A[row][col];
     }
   }
-  const Eigen::Matrix<double, 3 * kNumBlocks, 1> x_large_true =
-      A_large_true.inverse() * b_large_true;
+  const auto x_large_true = A_large_true.inverse() * b_large_true;
 
   timer::tic();
   Eigen::LDLT<Eigen::MatrixXd> ldlt;
   ldlt.compute(A_large_true);
   timer::toc(1);
 
-  BlockFullMat33 L(kNumBlocks, std::vector<Mat33>(kNumBlocks));
-  for (int row = 0; row < kNumBlocks; ++row) {
-    for (int col = 0; col < kNumBlocks; ++col) {
-      L[row][col].setZero();
-    }
-  }
-
-  BlockDiagMat33 D(kNumBlocks);
-  for (int i = 0; i < kNumBlocks; ++i) {
-    D[i].setZero();
-  }
-
-  for (int j = 0; j < kNumBlocks; j++) {
-    Mat33 mat_sum;
-    mat_sum.setZero();
-    for (int k = 0; k < j; ++k) {
-      mat_sum += L[j][k] * D[k] * L[j][k].transpose();
-    }
-    D[j] = A[j][j] - mat_sum;
-
-    for (int i = j; i < kNumBlocks; ++i) {
-      mat_sum.setZero();
-      for (int k = 0; k < j; ++k) {
-        mat_sum += L[i][k] * D[k] * L[j][k].transpose();
-      }
-
-      L[i][j] = (A[i][j] - mat_sum) * D[j].inverse();
-    }
-  }
-
-  //
-  Eigen::Matrix<double, 3 * kNumBlocks, 3 * kNumBlocks> L_mat;
-  Eigen::Matrix<double, 3 * kNumBlocks, 3 * kNumBlocks> D_mat;
-  L_mat.setZero();
-  D_mat.setZero();
-  for (int row = 0; row < kNumBlocks; ++row) {
-    D_mat.block<3, 3>(3 * row, 3 * row) = D[row];
-    for (int col = 0; col <= row; ++col) {
-      L_mat.block<3, 3>(3 * row, 3 * col) = L[row][col];
-    }
-  }
-
-  auto A_large_1 = L_mat * D_mat * L_mat.transpose();
-  // std::cerr << "A_large diff:\n" << A_large_true - A_large_1 << std::endl;
   //
   timer::tic();
-  const auto x2 = chol_ldlt.DecomposeMatrix(A).SolveLinearEquation(b);
+  BlockCholeskyDecomposer<double, Dim, M> chol_ldlt;
+  chol_ldlt.DecomposeMatrix(A);
   timer::toc(1);
-  const auto L2 = chol_ldlt.GetMatrixL();
-  const auto D2 = chol_ldlt.GetMatrixD();
 
-  Eigen::Matrix<double, 3 * kNumBlocks, 3 * kNumBlocks> L_mat2;
-  Eigen::Matrix<double, 3 * kNumBlocks, 3 * kNumBlocks> D_mat2;
-  L_mat2.setZero();
-  D_mat2.setZero();
-  for (int row = 0; row < kNumBlocks; ++row) {
-    D_mat2.block<3, 3>(3 * row, 3 * row) = D2[row];
+  const auto x = chol_ldlt.SolveLinearEquation(b);
+
+  const auto L_est = chol_ldlt.GetMatrixL();
+  const auto D_est = chol_ldlt.GetMatrixD();
+
+  Eigen::MatrixXd L_mat_est(Dim * M, Dim * M);
+  Eigen::MatrixXd D_mat_est(Dim * M, Dim * M);
+  L_mat_est.setZero();
+  D_mat_est.setZero();
+  for (int row = 0; row < M; ++row) {
+    D_mat_est.block<Dim, Dim>(Dim * row, Dim * row) = D_est[row];
     for (int col = 0; col <= row; ++col) {
-      L_mat2.block<3, 3>(3 * row, 3 * col) = L2[row][col];
+      L_mat_est.block<Dim, Dim>(Dim * row, Dim * col) = L_est[row][col];
     }
   }
 
-  auto A_large_2 = L_mat2 * D_mat2 * L_mat2.transpose();
-  // std::cerr << "A_large diff:\n" << A_large_true - A_large_2 << std::endl;
-  // std::cerr << "D_mat diff:\n" << D_mat - D_mat2 << std::endl;
-  // for (int i = 0; i < kNumBlocks; ++i) {
-  //   std::cerr << (x2[i] - x_large_true.block<3, 1>(3 * i, 0)) << std::endl;
-  // }
+  auto A_mat_est = L_mat_est * D_mat_est * L_mat_est.transpose();
+  std::cerr << "A_large diff:\n" << A_large_true - A_mat_est << std::endl;
+  for (int i = 0; i < M; ++i) {
+    std::cerr << (x[i] - x_large_true.block<Dim, 1>(Dim * i, 0)) << std::endl;
+    // std::cerr << x_large_true.block<Dim, 1>(Dim * i, 0) << std::endl;
+  }
 
   return 0;
 }
