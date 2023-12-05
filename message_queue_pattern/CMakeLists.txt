@@ -1,4 +1,4 @@
-project(publisher_subscriber_pattern)
+project(message_queue_pattern)
 cmake_minimum_required(VERSION 3.16)
 
 set(CMAKE_BUILD_TYPE Release)
@@ -12,4 +12,4 @@ include_directories(${Eigen3_INCLUDE_DIRS})
 
 set(SRC ${SRC} )
 
-add_executable(publisher_subscriber_pattern main.cc ${SRC})
+add_executable(message_queue_pattern main.cc ${SRC})
