@@ -91,19 +91,6 @@ void WorkerThreadPool::RunProcessForWorkerThread() {
   PrintInfo("The thread is end.");
 }
 
-void WorkerThreadPool::EnqueueTask(std::function<void()> task) {
-  if (thread_pool_status_ == WorkerThreadPoolStatus::kKill) {
-    PrintInfo("Thread pool is terminated. Thread pool status is 'kKill'");
-    return;
-  }
-
-  mutex_.lock();
-  task_queue_.push(std::move(task));
-  mutex_.unlock();
-
-  WakeUpOneThread();
-}
-
 int WorkerThreadPool::GetNumOfOngoingTasks() {
   std::unique_lock<std::mutex> local_lock(mutex_);
   return num_of_ongoing_tasks_;
