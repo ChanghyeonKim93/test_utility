@@ -6,10 +6,10 @@
 #include <thread>
 
 template <typename MessageType>
-class MessageQueue {
+class MessageHandler {
  public:
-  MessageQueue() {}
-  ~MessageQueue() {}
+  MessageHandler() {}
+  ~MessageHandler() {}
 
  private:
 };

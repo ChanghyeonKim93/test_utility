@@ -3,10 +3,38 @@
 #include <vector>
 
 #include "backend_optimizer.h"
-#include "message_queue.h"
+#include "message_handler.h"
 #include "types.h"
 
 using namespace std::chrono_literals;
+
+// template <class DataType>
+// class MessageBroker {
+//  public:
+//   MessageBroker() {}
+//   MessageBroker(const MessageBroker& rhs) = delete;
+//   ~MessageBroker() {}
+//   int GetId() const { return id_; }
+//   void AddPoint() { ++id_; }
+
+//  protected:
+//   int id_{0};
+// };
+
+// template <typename DataType>
+// class Publisher {
+//  public:
+//   Publisher() {
+//     std::cerr << "broker id :" << typeid(DataType).name() << std::endl;
+//     message_broker_.AddPoint();
+//     std::cerr << message_broker_.GetId() << std::endl;
+//   }
+
+//  public:
+//   static MessageBroker<DataType> message_broker_;
+// };
+// template <typename DataType>
+// MessageBroker<DataType> Publisher<DataType>::message_broker_;
 
 void CallbackFunction1(const std::vector<Submap>& submap_list) {
   std::stringstream ss;
@@ -29,10 +57,19 @@ void CallbackFunction3(const std::vector<Submap>& submap_list) {
 int main() {
   std::cerr << "starts\n";
 
+  // using SubmapListMessage = std::vector<Submap>;
+  // using ScanListMessage = std::vector<Scan>;
+  // Publisher<SubmapListMessage> a;
+  // Publisher<SubmapListMessage> a2;
+  // Publisher<SubmapListMessage> a3;
+  // Publisher<ScanListMessage> b;
+  // Publisher<ScanListMessage> b2;
+  // Publisher<ScanListMessage> b3;
+
   // BackendOptimizer optimizer;
   constexpr int kMaxQueueSize{10};
-  std::shared_ptr<MessageQueue<std::vector<Submap>>> message_queue =
-      std::make_shared<MessageQueue<std::vector<Submap>>>(kMaxQueueSize);
+  std::shared_ptr<MessageHandler<std::vector<Submap>>> message_queue =
+      std::make_shared<MessageHandler<std::vector<Submap>>>(kMaxQueueSize);
 
   message_queue->Subscribe(
       std::bind(&CallbackFunction1, std::placeholders::_1));

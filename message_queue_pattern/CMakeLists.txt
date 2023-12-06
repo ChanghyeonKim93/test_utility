@@ -10,6 +10,8 @@ find_package(Eigen3 REQUIRED)
 include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${Eigen3_INCLUDE_DIRS})
 
-set(SRC ${SRC} )
+set(SRC ${SRC} 
+worker_thread_pool.cc)
 
 add_executable(message_queue_pattern main.cc ${SRC})
+add_executable(real_example main_real_example.cc ${SRC})

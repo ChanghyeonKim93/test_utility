@@ -7,6 +7,12 @@ struct Point {
   double y{0.0};
 };
 
+struct Pose {
+  double x{0.0};
+  double y{0.0};
+  double theta{0.0};
+};
+
 struct Scan {
   int index{0};
   int version{0};
@@ -16,6 +22,7 @@ struct Scan {
 struct Submap {
   int index{0};
   int version{0};
+  Pose pose{};
   std::vector<Scan> scan_list;
 };
 
