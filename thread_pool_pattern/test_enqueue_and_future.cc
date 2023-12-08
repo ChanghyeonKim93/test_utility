@@ -1,7 +1,7 @@
 #include <chrono>
 #include <iostream>
 
-#include "worker_thread_pool.h"
+#include "multi_thread_executor.h"
 
 using namespace std::chrono_literals;
 
@@ -32,8 +32,8 @@ int main() {
   select_cpu_nums[3] = 3;
 
   // ThreadPool pool(num_threads, select_cpu_nums);
-  std::unique_ptr<WorkerThreadPool> worker_thread_pool =
-      std::make_unique<WorkerThreadPool>(num_threads);
+  std::unique_ptr<MultiThreadExecutor> multi_thread_executor =
+      std::make_unique<MultiThreadExecutor>(num_threads);
 
   using FeatureList = std::vector<Feature>;
   std::vector<std::future<FeatureList>> vector_of_future_feature_list;
@@ -41,29 +41,29 @@ int main() {
 
   std::chrono::system_clock::time_point t1 = std::chrono::system_clock::now();
   vector_of_future_feature_list.emplace_back(
-      worker_thread_pool->EnqueueTaskAndGetResultInFuture(FindFeatures, 300, 20,
-                                                          0, 0.9f));
+      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 300,
+                                                             20, 0, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      worker_thread_pool->EnqueueTaskAndGetResultInFuture(FindFeatures, 200, 20,
-                                                          1, 0.9f));
+      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 200,
+                                                             20, 1, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      worker_thread_pool->EnqueueTaskAndGetResultInFuture(FindFeatures, 100, 20,
-                                                          1, 0.9f));
+      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 100,
+                                                             20, 1, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      worker_thread_pool->EnqueueTaskAndGetResultInFuture(FindFeatures, 50, 20,
-                                                          2, 0.9f));
+      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 50,
+                                                             20, 2, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      worker_thread_pool->EnqueueTaskAndGetResultInFuture(FindFeatures, 300, 20,
-                                                          0, 0.9f));
+      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 300,
+                                                             20, 0, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      worker_thread_pool->EnqueueTaskAndGetResultInFuture(FindFeatures, 200, 20,
-                                                          1, 0.9f));
+      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 200,
+                                                             20, 1, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      worker_thread_pool->EnqueueTaskAndGetResultInFuture(FindFeatures, 100, 20,
-                                                          1, 0.9f));
+      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 100,
+                                                             20, 1, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      worker_thread_pool->EnqueueTaskAndGetResultInFuture(FindFeatures, 50, 20,
-                                                          2, 0.9f));
+      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 50,
+                                                             20, 2, 0.9f));
 
   FeatureList all_feature_list;
   for (size_t index = 0; index < 8; ++index) {

@@ -5,8 +5,7 @@ set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(INCLUDE_DIR ${INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
-set(SRC ${SRC}
- worker_thread_pool.cc)
+set(SRC ${SRC})
 
 include_directories(${INCLUDE_DIR})
 
