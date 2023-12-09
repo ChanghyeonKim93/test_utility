@@ -1,5 +1,5 @@
-#ifndef WORKER_THREAD_POOL_H_
-#define WORKER_THREAD_POOL_H_
+#ifndef MULTI_TRHEAD_EXECUTOR_H_
+#define MULTI_TRHEAD_EXECUTOR_H_
 
 #include <atomic>
 #include <chrono>
@@ -43,7 +43,7 @@ class MultiThreadExecutor {
   enum class Status { kRun = 0, kKill = 1 };
 
  public:
-  explicit MultiThreadExecutor(int num_threads) : thread_status_(Status::kRun) {
+  explicit MultiThreadExecutor(int num_threads) : status_(Status::kRun) {
     worker_thread_list_.reserve(num_threads);
     for (int index = 0; index < num_threads; ++index)
       worker_thread_list_.emplace_back(
@@ -52,7 +52,7 @@ class MultiThreadExecutor {
 
   MultiThreadExecutor(const int num_threads,
                       const std::vector<int>& processor_numbers_for_each_thread)
-      : thread_status_(Status::kRun) {
+      : status_(Status::kRun) {
     if (num_threads !=
         static_cast<int>(processor_numbers_for_each_thread.size()))
       ThrowError("processor_numbers_for_each_thread.size() != num_threads");
@@ -61,13 +61,13 @@ class MultiThreadExecutor {
     for (int index = 0; index < num_threads; ++index) {
       worker_thread_list_.emplace_back(
           [this]() { RunProcessForWorkerThread(); });
-      AllocateCpuProcessorForEachThread(
-          worker_thread_list_[index], processor_numbers_for_each_thread[index]);
+      AllocateProcessorsForEachThread(worker_thread_list_[index],
+                                      processor_numbers_for_each_thread[index]);
     }
   }
 
   ~MultiThreadExecutor() {
-    thread_status_ = Status::kKill;
+    status_ = Status::kKill;
     WakeUpAllThreads();
     for (auto& worker_thread : worker_thread_list_) {
       worker_thread.join();
@@ -76,28 +76,15 @@ class MultiThreadExecutor {
   }
 
   template <typename Func, typename... Args>
-  void EnqueueTask(Func&& func, Args&&... args) {
-    using ReturnType = typename std::invoke_result<Func, Args...>::type;
-    auto task_ptr = std::make_shared<std::packaged_task<ReturnType()>>(
-        std::bind(std::forward<Func>(func), std::forward<Args>(args)...));
-
-    {
-      std::lock_guard<std::mutex> local_lock(mutex_);
-      task_queue_.push_back([task_ptr]() { (*task_ptr)(); });
-    }
-    WakeUpOneThread();
-  }
-
-  template <typename Func, typename... Args>
-  std::future<typename std::invoke_result<Func, Args...>::type>
-  EnqueueTaskAndGetResultInFuture(Func&& func, Args&&... args) {
+  std::future<typename std::invoke_result<Func, Args...>::type> Execute(
+      Func&& func, Args&&... args) {
     using ReturnType = typename std::invoke_result<Func, Args...>::type;
     auto task_ptr = std::make_shared<std::packaged_task<ReturnType()>>(
         std::bind(std::forward<Func>(func), std::forward<Args>(args)...));
     std::future<ReturnType> future_result = task_ptr->get_future();
 
     {
-      std::lock_guard<std::mutex> local_lock(mutex_);
+      std::lock_guard<std::mutex> local_lock(mutex_for_cv_);
       task_queue_.push_back([task_ptr]() { (*task_ptr)(); });
     }
     WakeUpOneThread();
@@ -105,36 +92,36 @@ class MultiThreadExecutor {
   }
 
   void PurgeAllTasks() {
-    std::unique_lock<std::mutex> local_lock(mutex_);
+    std::unique_lock<std::mutex> local_lock(mutex_for_cv_);
     task_queue_.clear();
   }
 
   int GetNumOfOngoingTasks() {
-    std::unique_lock<std::mutex> local_lock(mutex_);
+    std::unique_lock<std::mutex> local_lock(mutex_for_cv_);
     return num_of_ongoing_tasks_;
   }
 
   int GetNumOfQueuedTasks() {
-    std::unique_lock<std::mutex> local_lock(mutex_);
+    std::unique_lock<std::mutex> local_lock(mutex_for_cv_);
     return static_cast<int>(task_queue_.size());
   }
 
   int GetNumOfTotalThreads() {
-    std::unique_lock<std::mutex> local_lock(mutex_);
+    std::unique_lock<std::mutex> local_lock(mutex_for_cv_);
     return static_cast<int>(worker_thread_list_.size());
   }
 
   int GetNumOfAwaitingThreads() {
-    std::unique_lock<std::mutex> local_lock(mutex_);
+    std::unique_lock<std::mutex> local_lock(mutex_for_cv_);
     return (static_cast<int>(worker_thread_list_.size()) -
             num_of_ongoing_tasks_);
   }
 
  private:
-  void WakeUpOneThread() { condition_variable_.notify_one(); }
-  void WakeUpAllThreads() { condition_variable_.notify_all(); }
-  bool AllocateCpuProcessorForEachThread(std::thread& input_thread,
-                                         const int cpu_core_index) {
+  void WakeUpOneThread() { cv_.notify_one(); }
+  void WakeUpAllThreads() { cv_.notify_all(); }
+  bool AllocateProcessorsForEachThread(std::thread& input_thread,
+                                       const int cpu_core_index) {
     const int num_max_threads_for_this_cpu =
         static_cast<int>(std::thread::hardware_concurrency());
     if (cpu_core_index >= num_max_threads_for_this_cpu) {
@@ -155,18 +142,15 @@ class MultiThreadExecutor {
     return true;
   }
   void RunProcessForWorkerThread() {
-    static const auto kPollingPeriodInMsec = std::chrono::milliseconds(1000);
     while (true) {
-      std::unique_lock<std::mutex> local_lock(mutex_);
-      if (!condition_variable_.wait_for(
-              local_lock, kPollingPeriodInMsec, [this]() {
-                return (!task_queue_.empty() ||
-                        (thread_status_ == Status::kKill));
-              })) {
+      std::unique_lock<std::mutex> local_lock(mutex_for_cv_);
+      if (!cv_.wait_for(local_lock, 1000ms, [this]() {
+            return (!task_queue_.empty() || (status_ == Status::kKill));
+          })) {
         continue;
       }
 
-      if (thread_status_ == Status::kKill) break;
+      if (status_ == Status::kKill) break;
 
       std::function<void()> new_task = std::move(task_queue_.front());
       task_queue_.pop_front();
@@ -183,10 +167,10 @@ class MultiThreadExecutor {
   }
 
  private:
-  std::atomic<Status> thread_status_;
+  std::atomic<Status> status_;
 
-  std::mutex mutex_;
-  std::condition_variable condition_variable_;
+  std::mutex mutex_for_cv_;
+  std::condition_variable cv_;
 
   std::vector<std::thread> worker_thread_list_;
   std::deque<std::function<void()>> task_queue_;

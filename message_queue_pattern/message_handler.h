@@ -8,16 +8,13 @@
 #include <list>
 #include <memory>
 #include <mutex>
-#include <string>
 #include <thread>
-#include <vector>
 
 #include "multi_thread_executor.h"
 
-/* Note: This is an example of observer pattern. */
-
 using namespace std::chrono_literals;
 
+/* Note: This is an example of observer pattern. */
 template <class DataType>
 class MessageHandler {
  public:
@@ -69,7 +66,7 @@ class MessageHandler {
 
       // 각 콜백함수를 실행하고 온다.
       for (auto&& callback : callback_function_list_)
-        multi_thread_executor_->EnqueueTask(callback, message.value());
+        multi_thread_executor_->Execute(callback, message.value());
     }
   }
 

@@ -41,29 +41,21 @@ int main() {
 
   std::chrono::system_clock::time_point t1 = std::chrono::system_clock::now();
   vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 300,
-                                                             20, 0, 0.9f));
+      multi_thread_executor->Execute(FindFeatures, 300, 20, 0, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 200,
-                                                             20, 1, 0.9f));
+      multi_thread_executor->Execute(FindFeatures, 200, 20, 1, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 100,
-                                                             20, 1, 0.9f));
+      multi_thread_executor->Execute(FindFeatures, 100, 20, 1, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 50,
-                                                             20, 2, 0.9f));
+      multi_thread_executor->Execute(FindFeatures, 50, 20, 2, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 300,
-                                                             20, 0, 0.9f));
+      multi_thread_executor->Execute(FindFeatures, 300, 20, 0, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 200,
-                                                             20, 1, 0.9f));
+      multi_thread_executor->Execute(FindFeatures, 200, 20, 1, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 100,
-                                                             20, 1, 0.9f));
+      multi_thread_executor->Execute(FindFeatures, 100, 20, 1, 0.9f));
   vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->EnqueueTaskAndGetResultInFuture(FindFeatures, 50,
-                                                             20, 2, 0.9f));
+      multi_thread_executor->Execute(FindFeatures, 50, 20, 2, 0.9f));
 
   FeatureList all_feature_list;
   for (size_t index = 0; index < 8; ++index) {
