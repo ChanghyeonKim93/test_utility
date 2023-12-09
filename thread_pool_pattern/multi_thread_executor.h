@@ -18,6 +18,8 @@
 
 using namespace std ::chrono_literals;
 
+#define MULTI_THREAD_EXECUTOR_VERBOSE false
+
 #ifndef PrintInfo
 void PrintInfoImpl(const std::string& str, const std::string& func_str) {
   std::stringstream ss;
@@ -47,7 +49,7 @@ class MultiThreadExecutor {
     worker_thread_list_.reserve(num_threads);
     for (int index = 0; index < num_threads; ++index)
       worker_thread_list_.emplace_back(
-          [this]() { RunProcessForWorkerThread(); });
+          [this, index]() { RunProcessForWorkerThread(index); });
   }
 
   MultiThreadExecutor(const int num_threads,
@@ -60,7 +62,7 @@ class MultiThreadExecutor {
     worker_thread_list_.reserve(num_threads);
     for (int index = 0; index < num_threads; ++index) {
       worker_thread_list_.emplace_back(
-          [this]() { RunProcessForWorkerThread(); });
+          [this, index]() { RunProcessForWorkerThread(index); });
       AllocateProcessorsForEachThread(worker_thread_list_[index],
                                       processor_numbers_for_each_thread[index]);
     }
@@ -141,7 +143,7 @@ class MultiThreadExecutor {
     }
     return true;
   }
-  void RunProcessForWorkerThread() {
+  void RunProcessForWorkerThread(const int thread_index) {
     while (true) {
       std::unique_lock<std::mutex> local_lock(mutex_for_cv_);
       if (!cv_.wait_for(local_lock, 1000ms, [this]() {
@@ -157,6 +159,8 @@ class MultiThreadExecutor {
       ++num_of_ongoing_tasks_;
       local_lock.unlock();
 
+      if (MULTI_THREAD_EXECUTOR_VERBOSE)
+        PrintInfo("Thread [" + std::to_string(thread_index) + "] runs.");
       new_task();  // Do the job!
 
       local_lock.lock();
