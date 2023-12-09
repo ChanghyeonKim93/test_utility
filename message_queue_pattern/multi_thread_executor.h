@@ -1,5 +1,5 @@
-#ifndef MULTI_TRHEAD_EXECUTOR_H_
-#define MULTI_TRHEAD_EXECUTOR_H_
+#ifndef MESSAGE_QUEUE_PATTERN_MULTI_THREAD_EXECUTOR_H_
+#define MESSAGE_QUEUE_PATTERN_MULTI_THREAD_EXECUTOR_H_
 
 #include <atomic>
 #include <chrono>
@@ -8,6 +8,7 @@
 #include <functional>
 #include <future>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <stdexcept>
@@ -15,8 +16,6 @@
 #include <thread>
 #include <utility>
 #include <vector>
-
-using namespace std ::chrono_literals;
 
 #ifndef PrintInfo
 void PrintInfoImpl(const std::string& str, const std::string& func_str) {
@@ -61,8 +60,8 @@ class MultiThreadExecutor {
     for (int index = 0; index < num_threads; ++index) {
       worker_thread_list_.emplace_back(
           [this]() { RunProcessForWorkerThread(); });
-      AllocateProcessorsForEachThread(worker_thread_list_[index],
-                                      processor_numbers_for_each_thread[index]);
+      AllocateProcessorsForEachThread(processor_numbers_for_each_thread[index],
+                                      &worker_thread_list_[index]);
     }
   }
 
@@ -120,19 +119,19 @@ class MultiThreadExecutor {
  private:
   void WakeUpOneThread() { cv_.notify_one(); }
   void WakeUpAllThreads() { cv_.notify_all(); }
-  bool AllocateProcessorsForEachThread(std::thread& input_thread,
-                                       const int cpu_core_index) {
+  bool AllocateProcessorsForEachThread(const int processor_index,
+                                       std::thread* input_thread) {
     const int num_max_threads_for_this_cpu =
         static_cast<int>(std::thread::hardware_concurrency());
-    if (cpu_core_index >= num_max_threads_for_this_cpu) {
+    if (processor_index >= num_max_threads_for_this_cpu) {
       PrintInfo("Exceed the maximum number of logical processors!");
       return false;
     }
 
     cpu_set_t cpu_set;
     CPU_ZERO(&cpu_set);
-    CPU_SET(cpu_core_index, &cpu_set);
-    int result = pthread_setaffinity_np(input_thread.native_handle(),
+    CPU_SET(processor_index, &cpu_set);
+    int result = pthread_setaffinity_np(input_thread->native_handle(),
                                         sizeof(cpu_set_t), &cpu_set);
     if (result != 0) {
       PrintInfo("Fail to allocate processor. pthread_setaffinity_np yields: " +
@@ -144,7 +143,7 @@ class MultiThreadExecutor {
   void RunProcessForWorkerThread() {
     while (true) {
       std::unique_lock<std::mutex> local_lock(mutex_for_cv_);
-      if (!cv_.wait_for(local_lock, 1000ms, [this]() {
+      if (!cv_.wait_for(local_lock, std::chrono::microseconds(1000), [this]() {
             return (!task_queue_.empty() || (status_ == Status::kKill));
           })) {
         continue;
@@ -178,4 +177,4 @@ class MultiThreadExecutor {
   int num_of_ongoing_tasks_{0};
 };
 
-#endif
+#endif  // MESSAGE_QUEUE_PATTERN_MULTI_THREAD_EXECUTOR_H_

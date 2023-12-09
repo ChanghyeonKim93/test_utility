@@ -1,9 +1,9 @@
-#ifndef BACKEND_OPTIMIZER_H_
-#define BACKEND_OPTIMIZER_H_
+#ifndef MESSAGE_QUEUE_PATTERN_BACKEND_OPTIMIZER_H_
+#define MESSAGE_QUEUE_PATTERN_BACKEND_OPTIMIZER_H_
 
 #include <functional>
 #include <iostream>
 
 class BackendOptimizer {};
 
-#endif  // TRAJECTORY_OPTIMIZER_H_
+#endif  // MESSAGE_QUEUE_PATTERN_BACKEND_OPTIMIZER_H_

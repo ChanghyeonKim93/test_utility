@@ -12,5 +12,5 @@ include_directories(${Eigen3_INCLUDE_DIRS})
 
 set(SRC ${SRC} )
 
-add_executable(message_queue_pattern main.cc ${SRC})
-add_executable(real_example main_real_example.cc ${SRC})
+add_executable(example_simple examples/main_simple.cc ${SRC})
+add_executable(example_realistic_situation examples/main_realistic_situation.cc ${SRC})

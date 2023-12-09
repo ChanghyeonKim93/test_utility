@@ -5,8 +5,6 @@
 #include "message_handler.h"
 #include "types.h"
 
-using namespace std::chrono_literals;
-
 using SubmapList = std::vector<Submap>;
 using ScanList = std::vector<Scan>;
 
@@ -55,7 +53,7 @@ class FrontendSupplier {
 
   void RunSubmapSupplierWhileLoop() {
     while (true) {
-      std::this_thread::sleep_for(50ms);
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
       Submap new_submap;
       new_submap.index = submap_index_++;
       new_submap.version = 0;
@@ -176,7 +174,7 @@ class BackendOptimizer {
       submap.pose.y += 0.002;
       submap.pose.theta -= 0.001;
     }
-    std::this_thread::sleep_for(357ms);
+    std::this_thread::sleep_for(std::chrono::milliseconds(357));
 
     {
       std::lock_guard<std::mutex> lock(mutex_for_index_to_submap_);

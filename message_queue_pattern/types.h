@@ -1,5 +1,5 @@
-#ifndef TYPES_H_
-#define TYPES_H_
+#ifndef MESSAGE_QUEUE_PATTERN_TYPES_H_
+#define MESSAGE_QUEUE_PATTERN_TYPES_H_
 #include <vector>
 
 struct Point {
@@ -26,4 +26,4 @@ struct Submap {
   std::vector<Scan> scan_list;
 };
 
-#endif  // TYPES_H_
+#endif  // MESSAGE_QUEUE_PATTERN_TYPES_H_

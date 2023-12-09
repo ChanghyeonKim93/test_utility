@@ -1,5 +1,5 @@
-#ifndef MESSAGE_HANDLER_H_
-#define MESSAGE_HANDLER_H_
+#ifndef MESSAGE_QUEUE_PATTERN_MESSAGE_HANDLER_H_
+#define MESSAGE_QUEUE_PATTERN_MESSAGE_HANDLER_H_
 
 #include <condition_variable>
 #include <deque>
@@ -9,10 +9,9 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <utility>
 
 #include "multi_thread_executor.h"
-
-using namespace std::chrono_literals;
 
 /* Note: This is an example of observer pattern. */
 template <class DataType>
@@ -52,7 +51,7 @@ class MessageHandler {
   void RunCallbackManagerWhileLoop() {
     while (true) {
       std::unique_lock<std::mutex> lock(mutex_);
-      if (!cv_.wait_for(lock, 1000ms, [&] {
+      if (!cv_.wait_for(lock, std::chrono::microseconds(1000), [&] {
             return (
                 (status_ == Status::kKill) ||
                 (!callback_function_list_.empty() && !message_queue_.empty()));
@@ -92,4 +91,4 @@ class MessageHandler {
   std::unique_ptr<MultiThreadExecutor> multi_thread_executor_;
 };
 
-#endif  // MESSAGE_HANDLER_H_
+#endif  // MESSAGE_QUEUE_PATTERN_MESSAGE_HANDLER_H_
