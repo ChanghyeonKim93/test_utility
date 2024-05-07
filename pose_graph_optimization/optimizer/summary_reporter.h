@@ -15,6 +15,7 @@ enum class IterationStatus {
 };
 
 struct OverallSummary {
+  int max_num_iterations{0};
   double initial_cost{0.0};
   double final_cost{0.0};
   bool is_converged{true};

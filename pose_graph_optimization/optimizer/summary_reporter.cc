@@ -65,23 +65,17 @@ const std::string SummaryReporter::BriefReport() const {
   }
 
   ss << std::setprecision(5);
-  ss << "Analytic Solver Report:\n";
+  ss << "Solver Report:\n";
   ss << "  Iterations      : " << num_iterations << "\n";
-  ss << "  Total time      : " << total_time_in_millisecond_ * 0.001
-     << " [second]\n";
-  ss << "  Initial cost    : " << optimization_info_list_.front().cost << "\n";
-  ss << "  Final cost      : " << optimization_info_list_.back().cost << "\n";
-  ss << "  Initial reproj. : "
-     << optimization_info_list_.front().average_reprojection_error
-     << " [pixel]\n";
-  ss << "  Final reproj.   : "
-     << optimization_info_list_.back().average_reprojection_error
-     << " [pixel]\n";
+  ss << "  Total time      : "
+     << iteration_summary_list_.back().cumulative_time_in_seconds << " [sec]\n";
+  ss << "  Initial cost    : " << iteration_summary_list_.front().cost << "\n";
+  ss << "  Final cost      : " << iteration_summary_list_.back().cost << "\n";
   ss << ", Termination     : "
-     << (convergence_status_ ? TEXT_GREEN("CONVERGENCE")
-                             : TEXT_YELLOW("NO_CONVERGENCE"))
+     << (overall_summary_.is_converged ? TEXT_GREEN("CONVERGENCE")
+                                       : TEXT_YELLOW("NO_CONVERGENCE"))
      << "\n";
-  if (max_iteration_ == num_iterations) {
+  if (overall_summary_.max_num_iterations == static_cast<int>(num_iterations)) {
     ss << TEXT_YELLOW(
         " WARNIING: MAX ITERATION is reached ! The solution could be local "
         "minima.\n");
