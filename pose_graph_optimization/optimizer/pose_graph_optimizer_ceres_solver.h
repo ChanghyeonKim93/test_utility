@@ -3,7 +3,7 @@
 
 #include <map>
 
-#include "optimizer/optimizer_options.h"
+#include "optimizer/options.h"
 #include "optimizer/pose_graph_optimizer.h"
 #include "optimizer/summary_reporter.h"
 #include "optimizer/types.h"
@@ -15,13 +15,34 @@ namespace optimizer {
 
 class PoseGraphOptimizerCeresSolver : public PoseGraphOptimizer {
  private:
+  class RelativePoseCostFunctor {
+   public:
+    RelativePoseCostFunctor(const Pose& T01) : T01_(T01) {}
+    template <typename T>
+    bool operator()(const T* const t0, const T* const w0, const T* const t1,
+                    const T* const w1, T* residuals) const {
+      residuals[0] = 1.0;
+      residuals[1] = 1.0;
+      residuals[2] = 1.0;
+      residuals[3] = 1.0;
+      residuals[4] = 1.0;
+      residuals[5] = 1.0;
+
+      return true;
+    }
+
+   private:
+    Pose T01_;
+  };
+
   class CostFunctor {
    public:
     CostFunctor(const Pose& relative_pose_measured_01)
         : relative_pose_measured_01_(relative_pose_measured_01) {}
 
-    //      t_ab = [ p_ab ]  = [ R(q_a)^T * (p_b - p_a) ]
-    //             [ q_ab ]    [ q_a^{-1] * q_b         ]
+    //    t_ab = [ p_ab ]  = [ R(q_a)^T * (p_b - p_a) ]
+    //           [ q_ab ]    [ q_a^{-1] * q_b         ]
+    //
     //   error = [ p_ab - \hat{p}_ab                 ]
     //           [ 2.0 * Vec(q_ab * \hat{q}_ab^{-1}) ]
 
