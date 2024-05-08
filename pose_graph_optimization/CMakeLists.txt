@@ -13,7 +13,7 @@ include_directories(${Eigen3_INCLUDE_DIRS})
 include_directories(${CERES_INCLUDE_DIRS})
 
 set(SRC ${SRC} 
-  optimizer/time_checker.cc
+  utility/time_checker.cc
   optimizer/summary_reporter.cc
   optimizer/pose_graph_optimizer.cc
   optimizer/pose_graph_optimizer_ceres_solver.cc

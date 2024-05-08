@@ -1,6 +1,6 @@
-#include "optimizer/time_checker.h"
+#include "utility/time_checker.h"
 
-namespace optimizer {
+namespace utility {
 
 TimeChecker::TimeChecker(const std::string& timer_name)
     : timer_name_(timer_name) {}
@@ -11,11 +11,12 @@ double TimeChecker::Start(const bool flag_verbose) {
   start_ = std::chrono::high_resolution_clock::now();
   intermediate_ = start_;
   std::chrono::high_resolution_clock::duration gap = intermediate_ - start_;
-  double gap_in_sec = (double)(gap / std::chrono::microseconds(1)) * 0.000001;
+  double gap_in_sec =
+      static_cast<double>((gap / std::chrono::microseconds(1)) * 0.000001);
   if (flag_verbose)
-    std::cout << "[" << timer_name_ << "]    start at: " << gap_in_sec
-              << " [sec]\n";
-
+    std::cout << "[" + timer_name_ +
+                     "]    start at: " + std::to_string(gap_in_sec) +
+                     " [sec]\n";
   return gap_in_sec;
 }
 
@@ -23,10 +24,12 @@ double TimeChecker::GetTimeFromStart(const bool flag_verbose) {
   intermediate_ = std::chrono::high_resolution_clock::now();
 
   std::chrono::high_resolution_clock::duration gap = intermediate_ - start_;
-  double gap_in_sec = (double)(gap / std::chrono::microseconds(1)) * 0.000001;
+  double gap_in_sec =
+      static_cast<double>((gap / std::chrono::microseconds(1)) * 0.000001);
   if (flag_verbose)
-    std::cout << "[" << timer_name_ << "] lap time at: " << gap_in_sec
-              << " [sec]\n";
+    std::cout << "[" + timer_name_ +
+                     "] lap time at: " + std::to_string(gap_in_sec) +
+                     " [sec]\n";
   return gap_in_sec;
 }
 
@@ -35,13 +38,13 @@ double TimeChecker::GetTimeFromLatest(const bool flag_verbose) {
       std::chrono::high_resolution_clock::now();
 
   std::chrono::high_resolution_clock::duration gap = time_now - intermediate_;
-  double gap_in_sec = (double)(gap / std::chrono::microseconds(1)) * 0.000001;
+  double gap_in_sec =
+      static_cast<double>((gap / std::chrono::microseconds(1)) * 0.000001);
   if (flag_verbose)
-    std::cout << "[" << timer_name_ << "] lap time at: " << gap_in_sec
-              << " [sec]\n";
-
+    std::cout << "[" + timer_name_ +
+                     "] lap time at: " + std::to_string(gap_in_sec) +
+                     " [sec]\n";
   intermediate_ = time_now;
-
   return gap_in_sec;
 }
 
@@ -49,11 +52,12 @@ double TimeChecker::Stop(const bool flag_verbose) {
   end_ = std::chrono::high_resolution_clock::now();
 
   std::chrono::high_resolution_clock::duration gap = end_ - start_;
-  double gap_in_sec = (double)(gap / std::chrono::microseconds(1)) * 0.000001;
+  double gap_in_sec =
+      static_cast<double>((gap / std::chrono::microseconds(1)) * 0.000001);
   if (flag_verbose)
-    std::cout << "[" << timer_name_ << "]      end at: " << gap_in_sec
-              << " [ms]\n";
-
+    std::cout << "[" + timer_name_ +
+                     "]      end at: " + std::to_string(gap_in_sec) +
+                     " [sec]\n";
   return gap_in_sec;
 }
 
@@ -67,7 +71,7 @@ double TimeChecker::toc(bool flag_verbose) {
   const double elapsed_time =
       static_cast<double>((gap / std::chrono::microseconds(1)) / 1000000.0);
   if (flag_verbose)
-    std::cout << "Execution time: " << elapsed_time << "[sec]\n";
+    std::cout << "Execution time: " + std::to_string(elapsed_time) + "[sec]\n";
   return elapsed_time;
 }
 
@@ -84,4 +88,4 @@ const std::string TimeChecker::GetCurrentDateAndTime() {
   return buf;
 }
 
-}  // namespace optimizer
+}  // namespace utility

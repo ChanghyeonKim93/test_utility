@@ -1,5 +1,5 @@
-#ifndef OPTIMIZER_OPTIMIZER_OPTIONS_H_
-#define OPTIMIZER_OPTIMIZER_OPTIONS_H_
+#ifndef OPTIMIZER_OPTIONS_H_
+#define OPTIMIZER_OPTIONS_H_
 
 namespace optimizer {
 
@@ -32,4 +32,4 @@ struct Options {
 
 }  // namespace optimizer
 
-#endif  // OPTIMIZER_OPTIMIZER_OPTIONS_H_
+#endif  // OPTIMIZER_OPTIONS_H_

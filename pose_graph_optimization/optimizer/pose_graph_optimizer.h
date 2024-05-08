@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "optimizer/optimizer_options.h"
+#include "optimizer/options.h"
 #include "optimizer/summary_reporter.h"
 #include "optimizer/types.h"
 

@@ -5,7 +5,8 @@
 #include <sstream>
 #include <string>
 
-#include "optimizer/cout_utility.h"
+#include "utility/string_modifier.h"
+#include "utility/time_checker.h"
 
 namespace optimizer {
 

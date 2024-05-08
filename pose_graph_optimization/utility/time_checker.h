@@ -1,11 +1,11 @@
-#ifndef OPTIMIZER_TIME_CHECKER_H_
-#define OPTIMIZER_TIME_CHECKER_H_
+#ifndef UTILITY_TIME_CHECKER_H_
+#define UTILITY_TIME_CHECKER_H_
 
 #include <chrono>
 #include <iostream>
 #include <string>
 
-namespace optimizer {
+namespace utility {
 
 class TimeChecker {
  public:
@@ -34,6 +34,6 @@ class TimeChecker {
   static const std::string GetCurrentDateAndTime();  // yyyy-mm-dd.hh:mm:ss
 };
 
-}  // namespace optimizer
+}  // namespace utility
 
-#endif  // OPTIMIZER_TIME_CHECKER_H_
+#endif  // UTILITY_TIME_CHECKER_H_
