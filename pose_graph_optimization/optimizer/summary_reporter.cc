@@ -18,7 +18,8 @@ SummaryReporter::~SummaryReporter() {}
 const std::string SummaryReporter::BriefReport() const {
   const std::streamsize default_precision{std::cout.precision()};
   std::stringstream ss;
-  ss << "itr ";            // 5
+  ss << "Iteration Report:\n";
+  ss << " itr";            // 5
   ss << "  total_cost  ";  // 14
   ss << " avg.reproj. ";   // 13
   ss << " cost_change ";   // 13
@@ -49,14 +50,13 @@ const std::string SummaryReporter::BriefReport() const {
 
     switch (iteration_summary.iteration_status) {
       case IterationStatus::UPDATE:
-        ss << "     "
-           << "UPDATE";
+        ss << "     " << "UPDATE";
         break;
       case IterationStatus::SKIPPED:
-        ss << "     " << TEXT_YELLOW(" SKIP ");
+        ss << "     " << utility::StringModifier::MakeYellow(" SKIP ");
         break;
       case IterationStatus::UPDATE_TRUST_MORE:
-        ss << "     " << TEXT_GREEN("UPDATE");
+        ss << "     " << utility::StringModifier::MakeGreen("UPDATE");
         break;
       default:
         ss << "     ";
@@ -72,12 +72,13 @@ const std::string SummaryReporter::BriefReport() const {
      << iteration_summary_list_.back().cumulative_time_in_seconds << " [sec]\n";
   ss << "  Initial cost    : " << iteration_summary_list_.front().cost << "\n";
   ss << "  Final cost      : " << iteration_summary_list_.back().cost << "\n";
-  ss << ", Termination     : "
-     << (overall_summary_.is_converged ? TEXT_GREEN("CONVERGENCE")
-                                       : TEXT_YELLOW("NO_CONVERGENCE"))
+  ss << "  Termination     : "
+     << (overall_summary_.is_converged
+             ? utility::StringModifier::MakeGreen("CONVERGENCE")
+             : utility::StringModifier::MakeYellow("NO_CONVERGENCE"))
      << "\n";
   if (overall_summary_.max_num_iterations == static_cast<int>(num_iterations)) {
-    ss << TEXT_YELLOW(
+    ss << utility::StringModifier::MakeYellow(
         " WARNIING: MAX ITERATION is reached ! The solution could be local "
         "minima.\n");
   }
