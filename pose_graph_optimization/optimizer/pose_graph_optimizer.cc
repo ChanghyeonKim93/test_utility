@@ -58,8 +58,7 @@ const Pose PoseGraphOptimizer::ConvertToPose(
   Pose pose{Pose::Identity()};
   pose.translation() = pos_and_rvec.position;
   pose.linear() =
-      utility::GeometryHelper::ConvertToQuaternion(pos_and_rvec.rvec)
-          .toRotationMatrix();
+      utility::GeometryHelper::ConvertToRotationMatrix(pos_and_rvec.rvec);
   return pose;
 }
 

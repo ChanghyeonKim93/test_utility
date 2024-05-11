@@ -10,34 +10,34 @@ int main() {
   optimizer = std::make_unique<optimizer::PoseGraphOptimizerCeresSolver>();
 
   optimizer::Pose del_pose;
-  del_pose.translation() = Eigen::Vector3d{0.1, -0.2, 0};
-  del_pose.linear() =
-      Eigen::Quaterniond{1, 0, 0, 3}.normalized().toRotationMatrix();
+  del_pose.translation() = Eigen::Vector3d{0.1, 0.25, 0};
+  del_pose.linear() = utility::GeometryHelper::ConvertToRotationMatrix(
+      Eigen::Vector3d(-0.04, 0.02, 0.1));
 
   optimizer::Pose pose0;
   pose0.translation() = Eigen::Vector3d{0, 0, 0};
-  pose0.linear() =
-      Eigen::Quaterniond{1, 0, 0, 0}.normalized().toRotationMatrix();
+  pose0.linear() = utility::GeometryHelper::ConvertToRotationMatrix(
+      Eigen::Vector3d(0, 0, 0));
 
   optimizer::Pose pose1;
   pose1.translation() = Eigen::Vector3d{0, 0.2, 0};
-  pose1.linear() =
-      Eigen::Quaterniond{1, 0, 0, 0.1}.normalized().toRotationMatrix();
+  pose1.linear() = utility::GeometryHelper::ConvertToRotationMatrix(
+      Eigen::Vector3d(0, 0, 0.1));
 
   optimizer::Pose pose2;
   pose2.translation() = Eigen::Vector3d{0.2, 0.5, 0};
-  pose2.linear() =
-      Eigen::Quaterniond{1, 0, 0, 0.1}.normalized().toRotationMatrix();
+  pose2.linear() = utility::GeometryHelper::ConvertToRotationMatrix(
+      Eigen::Vector3d(0, 0, 0.2));
 
   optimizer::Pose pose3;
   pose3.translation() = Eigen::Vector3d{0.1, 0.1, 0};
-  pose3.linear() =
-      Eigen::Quaterniond{1, 0, 0, 0.2}.normalized().toRotationMatrix();
+  pose3.linear() = utility::GeometryHelper::ConvertToRotationMatrix(
+      Eigen::Vector3d(0, 0, 0.1));
 
   optimizer::Pose pose4;
   pose4.translation() = Eigen::Vector3d{0.1, 0.05, 0};
-  pose4.linear() =
-      Eigen::Quaterniond{1, 0, 0, 0.0}.normalized().toRotationMatrix();
+  pose4.linear() = utility::GeometryHelper::ConvertToRotationMatrix(
+      Eigen::Vector3d(0, 0, 0));
 
   optimizer::RelativePoseConstraint constraint0{
       optimizer::RelativePoseConstraint::Type::kOdometry, 0, 1,
@@ -69,19 +69,6 @@ int main() {
   pose_list.push_back(pose3 * del_pose.inverse());
   pose_list.push_back(pose4 * del_pose * del_pose);
 
-  std::cerr << "Before solve:\n";
-  for (size_t i = 0; i < true_pose_list.size(); ++i) {
-    std::cerr << pose_list[i].translation().transpose() << " / "
-              << utility::GeometryHelper::ConvertToRotationVector(
-                     Eigen::Matrix3d(pose_list[i].linear()))
-                     .transpose()
-              << " |  " << pose_list[i].translation().transpose() << " / "
-              << utility::GeometryHelper::ConvertToRotationVector(
-                     Eigen::Matrix3d(pose_list[i].linear()))
-                     .transpose()
-              << std::endl;
-  }
-
   optimizer->RegisterPose(0, &pose_list[0]);
   optimizer->RegisterPose(1, &pose_list[1]);
   optimizer->RegisterPose(2, &pose_list[2]);
@@ -105,10 +92,15 @@ int main() {
 
   // Check result
   for (size_t i = 0; i < true_pose_list.size(); ++i) {
-    const auto delta_pose = true_pose_list[i].inverse() * pose_list[i];
-    std::cerr << delta_pose.translation().transpose() << " / "
+    std::cerr << "trans: " << true_pose_list[i].translation().transpose()
+              << " / " << pose_list[i].translation().transpose() << "\n";
+    std::cerr << "rvec: "
               << utility::GeometryHelper::ConvertToRotationVector(
-                     Eigen::Matrix3d(delta_pose.linear()))
+                     Eigen::Matrix3d(true_pose_list[i].linear()))
+                     .transpose()
+              << " / "
+              << utility::GeometryHelper::ConvertToRotationVector(
+                     Eigen::Matrix3d(pose_list[i].linear()))
                      .transpose()
               << std::endl;
   }

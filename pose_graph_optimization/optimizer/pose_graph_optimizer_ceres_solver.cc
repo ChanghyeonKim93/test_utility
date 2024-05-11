@@ -99,10 +99,8 @@ bool PoseGraphOptimizerCeresSolver::Solve(const Options& options,
   // Check solver states
   if (ceres_summary.IsSolutionUsable()) {
     // Update poses
-    for (auto& [pose_ptr, parameter] : pose_ptr_to_parameter_map_) {
-      std::cerr << "IN!!: " << parameter.position.transpose() << std::endl;
+    for (auto& [pose_ptr, parameter] : pose_ptr_to_parameter_map_)
       *pose_ptr = ConvertToPose(parameter);
-    }
   } else {
     is_success = false;
   }
