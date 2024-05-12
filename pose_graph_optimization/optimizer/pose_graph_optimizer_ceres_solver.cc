@@ -56,6 +56,8 @@ bool PoseGraphOptimizerCeresSolver::Solve(const Options& options,
   ceres_options.max_num_iterations = iteration_handle.max_num_iterations;
   ceres_options.function_tolerance = convergence_handle.threshold_cost_change;
   ceres_options.parameter_tolerance = convergence_handle.threshold_step_size;
+  ceres_options.linear_solver_type =
+      ceres::LinearSolverType::SPARSE_NORMAL_CHOLESKY;
   //   ceres_options.minimizer_progress_to_stdout = true;
   ceres::Solve(ceres_options, &ceres_problem, &ceres_summary);
 

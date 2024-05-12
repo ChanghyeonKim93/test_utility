@@ -11,6 +11,9 @@ include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${Eigen3_INCLUDE_DIRS})
 
 set(SRC ${SRC} 
-timer.cpp)
+  timer.cpp
+  thirdparty/csparse.cc)
 
 add_executable(block_cholesky_decomposition main.cc ${SRC})
+
+add_executable(examples/example_csparse_with_eigen examples/example_csparse_with_eigen.cc ${SRC})

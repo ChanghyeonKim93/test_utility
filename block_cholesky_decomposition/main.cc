@@ -8,8 +8,8 @@
 #include "timer.h"
 
 int main() {
-  const int Dim{3};
-  const int M{22};
+  const int Dim{2};
+  const int M{200};
 
   using BlockMatrix = Eigen::Matrix<double, Dim, Dim>;
   using BlockVector = Eigen::Matrix<double, Dim, 1>;
@@ -37,20 +37,20 @@ int main() {
   const auto x_large_true = A_large_true.inverse() * b_large_true;
 
   timer::tic();
-  Eigen::LDLT<Eigen::MatrixXd> ldlt;
-  ldlt.compute(A_large_true);
+  Eigen::LDLT<Eigen::MatrixXd> eigen_ldlt;
+  eigen_ldlt.compute(A_large_true);
   timer::toc(1);
 
   //
   timer::tic();
-  BlockCholeskyDecomposer<double, Dim, M> chol_ldlt;
-  chol_ldlt.DecomposeMatrix(A);
+  BlockCholeskyDecomposer<double, Dim, M> block_ldlt;
+  block_ldlt.DecomposeMatrix(A);
   timer::toc(1);
 
-  const auto x = chol_ldlt.SolveLinearEquation(b);
+  const auto x = block_ldlt.SolveLinearEquation(b);
 
-  const auto L_est = chol_ldlt.GetMatrixL();
-  const auto D_est = chol_ldlt.GetMatrixD();
+  const auto L_est = block_ldlt.GetMatrixL();
+  const auto D_est = block_ldlt.GetMatrixD();
 
   Eigen::MatrixXd L_mat_est(Dim * M, Dim * M);
   Eigen::MatrixXd D_mat_est(Dim * M, Dim * M);
@@ -62,11 +62,15 @@ int main() {
       L_mat_est.block<Dim, Dim>(Dim * row, Dim * col) = L_est[row][col];
     }
   }
+  std::cerr << D_mat_est << std::endl;
 
   auto A_mat_est = L_mat_est * D_mat_est * L_mat_est.transpose();
   std::cerr << "A_large diff:\n" << A_large_true - A_mat_est << std::endl;
   for (int i = 0; i < M; ++i) {
-    std::cerr << (x[i] - x_large_true.block<Dim, 1>(Dim * i, 0)) << std::endl;
+    // std::cerr << (x[i] - x_large_true.block<Dim, 1>(Dim * i, 0)) <<
+    // std::endl;
+    std::cerr << (x[i] - x_large_true.block<Dim, 1>(Dim * i, 0)).norm()
+              << std::endl;
     // std::cerr << x_large_true.block<Dim, 1>(Dim * i, 0) << std::endl;
   }
 
