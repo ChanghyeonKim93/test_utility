@@ -2,6 +2,7 @@
 #define _CS_H
 
 // Reference: https://people.math.sc.edu/Burkardt/c_src/csparse/csparse.html
+// Reference 2: Efficient Sparse Pose Adjustment for 2D Mapping (conf.paper)
 /*
  CS_CHOL : sparse Cholesky
  CS_CHOLSOL : x=A\b using sparse Cholesky

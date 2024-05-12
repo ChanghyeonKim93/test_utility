@@ -1,4 +1,5 @@
 // Reference: https://people.math.sc.edu/Burkardt/c_src/csparse/csparse.html
+// Reference 2: Efficient Sparse Pose Adjustment for 2D Mapping (conf.paper)
 
 #include <limits.h>
 #include <math.h>
