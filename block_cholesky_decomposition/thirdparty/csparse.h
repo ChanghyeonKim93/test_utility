@@ -24,7 +24,7 @@ struct SparseMatrix /* matrix in compressed-column or triplet form */
   int* p;    /* column pointers (size n+1) or col indices (size nzmax) */
   int* i;    /* row indices, size nzmax */
   double* x; /* numerical values, size nzmax */
-  int nz;    /* # of entries in triplet matrix, -1 for compressed-col */
+  int nz; /* the number of entries in triplet matrix, -1 for compressed-col */
 };
 
 SparseMatrix* cs_add(const SparseMatrix* A, const SparseMatrix* B, double alpha,
