@@ -20,3 +20,7 @@ add_executable(block_cholesky_decomposition main.cc ${SRC})
 add_executable(example_csparse_with_eigen examples/example_csparse_with_eigen.cc ${SRC})
 target_link_libraries(example_csparse_with_eigen 
   ${Eigen3_LIBRARIES} ${CERES_LIBRARIES})
+
+add_executable(example_eigen_sparse_cholesky examples/example_eigen_sparse_cholesky.cc ${SRC})
+target_link_libraries(example_eigen_sparse_cholesky 
+  ${Eigen3_LIBRARIES} ${CERES_LIBRARIES})

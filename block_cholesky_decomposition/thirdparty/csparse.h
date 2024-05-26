@@ -18,13 +18,14 @@ namespace csparse {
 /* --- primary CSparse routines and data structures ------------------------- */
 struct SparseMatrix /* matrix in compressed-column or triplet form */
 {
-  int nzmax; /* maximum number of entries */
-  int m;     /* number of rows */
-  int n;     /* number of columns */
-  int* p;    /* column pointers (size n+1) or col indices (size nzmax) */
-  int* i;    /* row indices, size nzmax */
-  double* x; /* numerical values, size nzmax */
-  int nz; /* the number of entries in triplet matrix, -1 for compressed-col */
+  int num_nonzero; /* maximum number of entries */
+  int m;           /* number of rows */
+  int n;           /* number of columns */
+  int* p;          /* column pointers (size n+1) or col indices (size nzmax) */
+  int* i;          /* row indices, size nzmax */
+  double* x;       /* numerical values, size nzmax */
+  int nz =
+      -1; /* the number of entries in triplet matrix, -1 for compressed-col */
 };
 
 SparseMatrix* cs_add(const SparseMatrix* A, const SparseMatrix* B, double alpha,
@@ -51,7 +52,7 @@ int cs_sprealloc(SparseMatrix* A, int nzmax);
 void* cs_malloc(int n, size_t size);
 
 /* --- secondary CSparse routines and data structures ----------------------- */
-struct Symbolic /* symbolic Cholesky, LU, or QR analysis */
+struct css /* symbolic Cholesky, LU, or QR analysis */
 {
   int* Pinv;   /* inverse row perm. for QR, fill red. perm for Chol */
   int* Q;      /* fill-reducing column permutation for LU and QR */
@@ -62,7 +63,7 @@ struct Symbolic /* symbolic Cholesky, LU, or QR analysis */
   int unz;     /* # entries in U for LU; in R for QR */
 };
 
-struct Numeric /* numeric Cholesky, LU, or QR factorization */
+struct csn /* numeric Cholesky, LU, or QR factorization */
 {
   SparseMatrix* L; /* L for LU and Cholesky, V for QR */
   SparseMatrix* U; /* U for LU, R for QR, not used for Cholesky */
@@ -82,7 +83,7 @@ struct DmpermResults /* cs_dmperm or cs_scc output */
 };
 
 int* cs_amd(const SparseMatrix* A, int order);
-Numeric* cs_chol(const SparseMatrix* A, const Symbolic* S);
+csn* cs_chol(const SparseMatrix* A, const css* S);
 DmpermResults* cs_dmperm(const SparseMatrix* A);
 int cs_droptol(SparseMatrix* A, double tol);
 int cs_dropzeros(SparseMatrix* A);
@@ -90,22 +91,22 @@ int cs_happly(const SparseMatrix* V, int i, double beta, double* x);
 int cs_ipvec(int n, const int* P, const double* b, double* x);
 int cs_lsolve(const SparseMatrix* L, double* x);
 int cs_ltsolve(const SparseMatrix* L, double* x);
-Numeric* cs_lu(const SparseMatrix* A, const Symbolic* S, double tol);
+csn* cs_lu(const SparseMatrix* A, const css* S, double tol);
 SparseMatrix* cs_permute(const SparseMatrix* A, const int* P, const int* Q,
                          int values);
 int* cs_pinv(const int* P, int n);
 int cs_pvec(int n, const int* P, const double* b, double* x);
-Numeric* cs_qr(const SparseMatrix* A, const Symbolic* S);
-Symbolic* cs_schol(const SparseMatrix* A, int order);
-Symbolic* cs_sqr(const SparseMatrix* A, int order, int qr);
+csn* cs_qr(const SparseMatrix* A, const css* S);
+css* cs_schol(const SparseMatrix* A, int order);
+css* cs_sqr(const SparseMatrix* A, int order, int qr);
 SparseMatrix* cs_symperm(const SparseMatrix* A, const int* Pinv, int values);
 int cs_usolve(const SparseMatrix* U, double* x);
 int cs_utsolve(const SparseMatrix* U, double* x);
 int cs_updown(SparseMatrix* L, int sigma, const SparseMatrix* C,
               const int* parent);
 /* utilities */
-Symbolic* cs_sfree(Symbolic* S);
-Numeric* cs_nfree(Numeric* N);
+css* cs_sfree(css* S);
+csn* cs_nfree(csn* N);
 DmpermResults* cs_dfree(DmpermResults* D);
 
 /* --- tertiary CSparse routines -------------------------------------------- */
@@ -132,7 +133,7 @@ int cs_tdfs(int j, int k, int* head, const int* next, int* post, int* stack);
 DmpermResults* cs_dalloc(int m, int n);
 SparseMatrix* cs_done(SparseMatrix* C, void* w, void* x, int ok);
 int* cs_idone(int* p, SparseMatrix* C, void* w, int ok);
-Numeric* cs_ndone(Numeric* N, SparseMatrix* C, void* w, void* x, int ok);
+csn* cs_ndone(csn* N, SparseMatrix* C, void* w, void* x, int ok);
 DmpermResults* cs_ddone(DmpermResults* D, SparseMatrix* C, void* w, int ok);
 
 #define CS_MAX(a, b) (((a) > (b)) ? (a) : (b))

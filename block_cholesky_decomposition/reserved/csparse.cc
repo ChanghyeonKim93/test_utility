@@ -1,17 +1,11 @@
-// Reference: https://people.math.sc.edu/Burkardt/c_src/csparse/csparse.html
-// Reference 2: Efficient Sparse Pose Adjustment for 2D Mapping (conf.paper)
-
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "thirdparty/csparse.h"
+#include "csparse.h"
 
-namespace csparse {
-
-SparseMatrix* cs_add(const SparseMatrix* A, const SparseMatrix* B, double alpha,
-                     double beta)
+cs* cs_add(const cs* A, const cs* B, double alpha, double beta)
 /*
   Purpose:
 
@@ -26,7 +20,7 @@ SparseMatrix* cs_add(const SparseMatrix* A, const SparseMatrix* B, double alpha,
 {
   int p, j, nz = 0, anz, *Cp, *Ci, *Bp, m, n, bnz, *w, values;
   double *x, *Bx, *Cx;
-  SparseMatrix* C;
+  cs* C;
   if (!A || !B) return (NULL); /* check inputs */
   m = A->m;
   anz = A->p[A->n];
@@ -34,9 +28,9 @@ SparseMatrix* cs_add(const SparseMatrix* A, const SparseMatrix* B, double alpha,
   Bp = B->p;
   Bx = B->x;
   bnz = Bp[n];
-  w = reinterpret_cast<int*>(cs_calloc(m, sizeof(int)));
+  w = cs_calloc(m, sizeof(int));
   values = (A->x != NULL) && (Bx != NULL);
-  x = values ? reinterpret_cast<double*>(cs_malloc(m, sizeof(double))) : NULL;
+  x = values ? cs_malloc(m, sizeof(double)) : NULL;
   C = cs_spalloc(m, n, anz + bnz, values, 0);
   if (!C || !w || (values && !x)) return (cs_done(C, w, x, 0));
   Cp = C->p;
@@ -76,14 +70,10 @@ static int cs_wclear(int mark, int lemax, int* w, int n)
 }
 
 /* keep off-diagonal entries; drop diagonal entries */
-static int cs_diag(int i, int j, double aij, void* other) {
-  (void)aij;
-  (void)other;
-  return (i != j);
-}
+static int cs_diag(int i, int j, double aij, void* other) { return (i != j); }
 
 /* p = amd(A+A') if symmetric is true, or amd(A'A) otherwise */
-int* cs_amd(const SparseMatrix* A, int order)
+int* cs_amd(const cs* A, int order)
 /*
   Purpose:
 
@@ -104,7 +94,7 @@ int* cs_amd(const SparseMatrix* A, int order)
     2:QR
 */
 {
-  SparseMatrix *C, *A2, *AT;
+  cs *C, *A2, *AT;
   int *Cp, *Ci, *last, *ww, *len, *nv, *next, *P, *head, *elen, *degree, *w,
       *hhead, *ATp, *ATi, d, dk, dext,
       lemax = 0, e, elenk, eln, i, j, k, k1, k2, k3, jlast, ln, dense, nzmax,
@@ -139,10 +129,8 @@ int* cs_amd(const SparseMatrix* A, int order)
   }
   cs_spfree(AT);
   if (!C) return (NULL);
-  P = reinterpret_cast<int*>(
-      cs_malloc(n + 1, sizeof(int))); /* allocate result */
-  ww = reinterpret_cast<int*>(
-      cs_malloc(8 * (n + 1), sizeof(int))); /* get workspace */
+  P = cs_malloc(n + 1, sizeof(int));        /* allocate result */
+  ww = cs_malloc(8 * (n + 1), sizeof(int)); /* get workspace */
   len = ww;
   nv = ww + (n + 1);
   next = ww + 2 * (n + 1);
@@ -159,7 +147,7 @@ int* cs_amd(const SparseMatrix* A, int order)
   /* --- Initialize quotient graph ---------------------------------------- */
   for (k = 0; k < n; k++) len[k] = Cp[k + 1] - Cp[k];
   len[n] = 0;
-  nzmax = C->num_nonzero;
+  nzmax = C->nzmax;
   Ci = C->i;
   for (i = 0; i <= n; i++) {
     head[i] = -1; /* degree list i is empty */
@@ -425,8 +413,8 @@ int* cs_amd(const SparseMatrix* A, int order)
 }
 
 /* compute nonzero pattern of L(k,:) */
-static int cs_ereach(const SparseMatrix* A, int k, const int* parent, int* s,
-                     int* w, double* x, int top) {
+static int cs_ereach(const cs* A, int k, const int* parent, int* s, int* w,
+                     double* x, int top) {
   int i, p, len, *Ap = A->p, *Ai = A->i;
   double* Ax = A->x;
   for (p = Ap[k]; p < Ap[k + 1]; p++) /* get pattern of L(k,:) */
@@ -445,21 +433,21 @@ static int cs_ereach(const SparseMatrix* A, int k, const int* parent, int* s,
 }
 
 /* L = chol (A, [Pinv parent cp]), Pinv is optional */
-csn* cs_chol(const SparseMatrix* A, const css* S) {
+csn* cs_chol(const cs* A, const css* S) {
   double d, lki, *Lx, *x;
   int top, i, p, k, n, *Li, *Lp, *cp, *Pinv, *w, *s, *c, *parent;
-  SparseMatrix *L, *C, *E;
+  cs *L, *C, *E;
   csn* N;
   if (!A || !S || !S->cp || !S->parent) return (NULL); /* check inputs */
   n = A->n;
-  N = reinterpret_cast<csn*>(cs_calloc(1, sizeof(csn)));
-  w = reinterpret_cast<int*>(cs_malloc(3 * n, sizeof(int)));
+  N = cs_calloc(1, sizeof(csn));
+  w = cs_malloc(3 * n, sizeof(int));
   s = w + n, c = w + 2 * n;
-  x = reinterpret_cast<double*>(cs_malloc(n, sizeof(double)));
+  x = cs_malloc(n, sizeof(double));
   cp = S->cp;
   Pinv = S->Pinv;
   parent = S->parent;
-  C = Pinv ? cs_symperm(A, Pinv, 1) : ((SparseMatrix*)A);
+  C = Pinv ? cs_symperm(A, Pinv, 1) : ((cs*)A);
   E = Pinv ? C : NULL;
   if (!N || !w || !x || !C) return (cs_ndone(N, E, w, x, 0));
   N->L = L = cs_spalloc(n, n, cp[n], 1, 0);
@@ -500,7 +488,7 @@ csn* cs_chol(const SparseMatrix* A, const css* S) {
 }
 
 /* x=A\b where A is symmetric positive definite; b overwritten with solution */
-int cs_cholsol(const SparseMatrix* A, double* b, int order) {
+int cs_cholsol(const cs* A, double* b, int order) {
   double* x;
   css* S;
   csn* N;
@@ -509,7 +497,7 @@ int cs_cholsol(const SparseMatrix* A, double* b, int order) {
   n = A->n;
   S = cs_schol(A, order); /* ordering and symbolic analysis */
   N = cs_chol(A, S);      /* numeric Cholesky factorization */
-  x = reinterpret_cast<double*>(cs_malloc(n, sizeof(double)));
+  x = cs_malloc(n, sizeof(double));
   ok = (S && N && x);
   if (ok) {
     cs_ipvec(n, S->Pinv, b, x); /* x = P*b */
@@ -544,22 +532,20 @@ static void cs_cedge(int j, int i, const int* first, int* maxfirst, int* delta,
 }
 
 /* colcount = column counts of LL'=A or LL'=A'A, given parent & post ordering */
-int* cs_counts(const SparseMatrix* A, const int* parent, const int* post,
-               int ata) {
+int* cs_counts(const cs* A, const int* parent, const int* post, int ata) {
   int i, j, k, p, n, m, ii, s, *ATp, *ATi, *maxfirst, *prevleaf, *ancestor,
       *head = NULL, *next = NULL, *colcount, *w, *first, *delta;
-  SparseMatrix* AT;
+  cs* AT;
   if (!A || !parent || !post) return (NULL); /* check inputs */
   m = A->m;
   n = A->n;
   s = 4 * n + (ata ? (n + m + 1) : 0);
-  w = reinterpret_cast<int*>(cs_malloc(s, sizeof(int)));
+  w = cs_malloc(s, sizeof(int));
   first = w + 3 * n; /* get workspace */
   ancestor = w;
   maxfirst = w + n;
   prevleaf = w + 2 * n;
-  delta = colcount =
-      reinterpret_cast<int*>(cs_malloc(n, sizeof(int))); /* allocate result */
+  delta = colcount = cs_malloc(n, sizeof(int)); /* allocate result */
   AT = cs_transpose(A, 0);
   if (!AT || !colcount || !w) return (cs_idone(colcount, AT, w, 1));
   for (k = 0; k < s; k++) w[k] = -1; /* clear workspace w [0..s-1] */
@@ -618,8 +604,7 @@ int cs_cumsum(int* p, int* c, int n) {
 }
 
 /* depth-first-search of the graph of a matrix, starting at node j */
-int cs_dfs(int j, SparseMatrix* L, int top, int* xi, int* pstack,
-           const int* Pinv) {
+int cs_dfs(int j, cs* L, int top, int* xi, int* pstack, const int* Pinv) {
   int i, p, p2, done, jnew, head = 0, *Lp, *Li;
   if (!L || !xi || !pstack) return (-1);
   Lp = L->p;
@@ -653,10 +638,10 @@ int cs_dfs(int j, SparseMatrix* L, int top, int* xi, int* pstack,
 }
 
 /* breadth-first search for coarse decomposition (C0,C1,R1 or R0,R3,C3) */
-static int cs_bfs(const SparseMatrix* A, int n, int* wi, int* wj, int* queue,
+static int cs_bfs(const cs* A, int n, int* wi, int* wj, int* queue,
                   const int* imatch, const int* jmatch, int mark) {
   int *Ap, *Ai, head = 0, tail = 0, j, i, p, j2;
-  SparseMatrix* C;
+  cs* C;
   for (j = 0; j < n; j++) /* place all unmatched nodes in queue */
   {
     if (imatch[j] >= 0) continue; /* skip j if matched */
@@ -664,7 +649,7 @@ static int cs_bfs(const SparseMatrix* A, int n, int* wi, int* wj, int* queue,
     queue[tail++] = j;            /* place unmatched col j in queue */
   }
   if (tail == 0) return (1); /* quick return if no unmatched nodes */
-  C = (mark == 1) ? ((SparseMatrix*)A) : cs_transpose(A, 0);
+  C = (mark == 1) ? ((cs*)A) : cs_transpose(A, 0);
   if (!C) return (0); /* bfs of C=A' to find R0,R3,C3 */
   Ap = C->p;
   Ai = C->i;
@@ -714,18 +699,16 @@ static void cs_unmatched(int m, const int* wi, int* P, int* rr, int set)
 
 /* return 1 if row i is in R2 */
 static int cs_rprune(int i, int j, double aij, void* other) {
-  (void)j;
-  (void)aij;
   int* rr = (int*)other;
   return (i >= rr[1] && i < rr[2]);
 }
 
 /* Given A, find coarse dmperm */
-DmpermResults* cs_dmperm(const SparseMatrix* A) {
+csd* cs_dmperm(const cs* A) {
   int m, n, i, j, k, p, cnz, nc, *jmatch, *imatch, *wi, *wj, *Pinv, *Cp, *Ci,
       *Ps, *Rs, nb1, nb2, *P, *Q, *cc, *rr, *R, *S, ok;
-  SparseMatrix* C;
-  DmpermResults *D, *scc;
+  cs* C;
+  csd *D, *scc;
   /* --- Maximum matching ------------------------------------------------- */
   if (!A) return (NULL); /* check inputs */
   m = A->m;
@@ -808,24 +791,19 @@ DmpermResults* cs_dmperm(const SparseMatrix* A) {
 }
 
 static int cs_tol(int i, int j, double aij, void* tol) {
-  (void)i;
-  (void)j;
   return (fabs(aij) > *((double*)tol));
 }
-int cs_droptol(SparseMatrix* A, double tol) {
+int cs_droptol(cs* A, double tol) {
   return (cs_fkeep(A, &cs_tol, &tol)); /* keep all large entries */
 }
 
 static int cs_nonzero(int i, int j, double aij, void* other) {
-  (void)i;
-  (void)j;
-  (void)other;
   return (aij != 0);
 }
-int cs_dropzeros(SparseMatrix* A) {
+int cs_dropzeros(cs* A) {
   return (cs_fkeep(A, &cs_nonzero, NULL)); /* keep all nonzero entries */
 }
-int cs_dupl(SparseMatrix* A)
+int cs_dupl(cs* A)
 /*
   Purpose:
 
@@ -846,8 +824,8 @@ int cs_dupl(SparseMatrix* A)
   Ap = A->p;
   Ai = A->i;
   Ax = A->x;
-  w = reinterpret_cast<int*>(cs_malloc(m, sizeof(int))); /* get workspace */
-  if (!w) return (0);                                    /* out of memory */
+  w = cs_malloc(m, sizeof(int));     /* get workspace */
+  if (!w) return (0);                /* out of memory */
   for (i = 0; i < m; i++) w[i] = -1; /* row i not yet seen */
   for (j = 0; j < n; j++) {
     q = nz; /* column j will start at q */
@@ -869,9 +847,8 @@ int cs_dupl(SparseMatrix* A)
 }
 
 /* add an entry to a triplet matrix; return 1 if ok, 0 otherwise */
-int cs_entry(SparseMatrix* T, int i, int j, double x) {
-  if (!T || (T->nz >= T->num_nonzero && !cs_sprealloc(T, 2 * (T->num_nonzero))))
-    return (0);
+int cs_entry(cs* T, int i, int j, double x) {
+  if (!T || (T->nz >= T->nzmax && !cs_sprealloc(T, 2 * (T->nzmax)))) return (0);
   if (T->x) T->x[T->nz] = x;
   T->i[T->nz] = i;
   T->p[T->nz++] = j;
@@ -881,15 +858,15 @@ int cs_entry(SparseMatrix* T, int i, int j, double x) {
 }
 
 /* compute the etree of A (using triu(A), or A'A without forming A'A */
-int* cs_etree(const SparseMatrix* A, int ata) {
+int* cs_etree(const cs* A, int ata) {
   int i, k, p, m, n, inext, *Ap, *Ai, *w, *parent, *ancestor, *prev;
   if (!A) return (NULL); /* check inputs */
   m = A->m;
   n = A->n;
   Ap = A->p;
   Ai = A->i;
-  parent = reinterpret_cast<int*>(cs_malloc(n, sizeof(int)));
-  w = reinterpret_cast<int*>(cs_malloc(n + (ata ? m : 0), sizeof(int)));
+  parent = cs_malloc(n, sizeof(int));
+  w = cs_malloc(n + (ata ? m : 0), sizeof(int));
   ancestor = w;
   prev = w + n;
   if (!w || !parent) return (cs_idone(parent, NULL, w, 0));
@@ -913,8 +890,7 @@ int* cs_etree(const SparseMatrix* A, int ata) {
 }
 
 /* drop entries for which fkeep(A(i,j)) is false; return nz if OK, else -1 */
-int cs_fkeep(SparseMatrix* A, int (*fkeep)(int, int, double, void*),
-             void* other) {
+int cs_fkeep(cs* A, int (*fkeep)(int, int, double, void*), void* other) {
   int j, p, nz = 0, n, *Ap, *Ai;
   double* Ax;
   if (!A || !fkeep) return (-1); /* check inputs */
@@ -936,7 +912,7 @@ int cs_fkeep(SparseMatrix* A, int (*fkeep)(int, int, double, void*),
 }
 
 /* y = A*x+y */
-int cs_gaxpy(const SparseMatrix* A, const double* x, double* y) {
+int cs_gaxpy(const cs* A, const double* x, double* y) {
   int p, j, n, *Ap, *Ai;
   double* Ax;
   if (!A || !x || !y) return (0); /* check inputs */
@@ -953,7 +929,7 @@ int cs_gaxpy(const SparseMatrix* A, const double* x, double* y) {
 }
 
 /* apply the ith Householder vector to x */
-int cs_happly(const SparseMatrix* V, int i, double beta, double* x) {
+int cs_happly(const cs* V, int i, double beta, double* x) {
   int p, *Vp, *Vi;
   double *Vx, tau = 0;
   if (!V || !x) return (0); /* check inputs */
@@ -998,7 +974,7 @@ int cs_ipvec(int n, const int* P, const double* b, double* x) {
   for (k = 0; k < n; k++) x[P ? P[k] : k] = b[k];
   return (1);
 }
-SparseMatrix* cs_load(FILE* f)
+cs* cs_load(FILE* f)
 /*
   Purpose:
 
@@ -1013,7 +989,7 @@ SparseMatrix* cs_load(FILE* f)
 {
   int i, j;
   double x;
-  SparseMatrix* T;
+  cs* T;
   if (!f) return (NULL);
   T = cs_spalloc(0, 0, 1, 1, 1);
   while (fscanf(f, "%d %d %lg\n", &i, &j, &x) == 3) {
@@ -1021,7 +997,7 @@ SparseMatrix* cs_load(FILE* f)
   }
   return (T);
 }
-int cs_lsolve(const SparseMatrix* L, double* x)
+int cs_lsolve(const cs* L, double* x)
 /*
   Purpose:
 
@@ -1053,7 +1029,7 @@ int cs_lsolve(const SparseMatrix* L, double* x)
   }
   return (1);
 }
-int cs_ltsolve(const SparseMatrix* L, double* x)
+int cs_ltsolve(const cs* L, double* x)
 /*
   Purpose:
 
@@ -1087,8 +1063,8 @@ int cs_ltsolve(const SparseMatrix* L, double* x)
 }
 
 /* [L,U,Pinv]=lu(A, [Q lnz unz]). lnz and unz can be guess */
-csn* cs_lu(const SparseMatrix* A, const css* S, double tol) {
-  SparseMatrix *L, *U;
+csn* cs_lu(const cs* A, const css* S, double tol) {
+  cs *L, *U;
   csn* N;
   double pivot, *Lx, *Ux, *x, a, t;
   int *Lp, *Li, *Up, *Ui, *Pinv, *xi, *Q, n, ipiv, k, top, p, i, col, lnz, unz;
@@ -1097,13 +1073,13 @@ csn* cs_lu(const SparseMatrix* A, const css* S, double tol) {
   Q = S->Q;
   lnz = S->lnz;
   unz = S->unz;
-  x = reinterpret_cast<double*>(cs_malloc(n, sizeof(double)));
-  xi = reinterpret_cast<int*>(cs_malloc(2 * n, sizeof(int)));
-  N = reinterpret_cast<csn*>(cs_calloc(1, sizeof(csn)));
+  x = cs_malloc(n, sizeof(double));
+  xi = cs_malloc(2 * n, sizeof(int));
+  N = cs_calloc(1, sizeof(csn));
   if (!x || !xi || !N) return (cs_ndone(N, NULL, xi, x, 0));
   N->L = L = cs_spalloc(n, n, lnz, 1, 0); /* initial L and U */
   N->U = U = cs_spalloc(n, n, unz, 1, 0);
-  N->Pinv = Pinv = reinterpret_cast<int*>(cs_malloc(n, sizeof(int)));
+  N->Pinv = Pinv = cs_malloc(n, sizeof(int));
   if (!L || !U || !Pinv) return (cs_ndone(N, NULL, xi, x, 0));
   Lp = L->p;
   Up = U->p;
@@ -1116,10 +1092,8 @@ csn* cs_lu(const SparseMatrix* A, const css* S, double tol) {
     /* --- Triangular solve --------------------------------------------- */
     Lp[k] = lnz; /* L(:,k) starts here */
     Up[k] = unz; /* U(:,k) starts here */
-    if ((lnz + n > L->num_nonzero &&
-         !cs_sprealloc(L, 2 * L->num_nonzero + n)) ||
-        (unz + n > U->num_nonzero &&
-         !cs_sprealloc(U, 2 * U->num_nonzero + n))) {
+    if ((lnz + n > L->nzmax && !cs_sprealloc(L, 2 * L->nzmax + n)) ||
+        (unz + n > U->nzmax && !cs_sprealloc(U, 2 * U->nzmax + n))) {
       return (cs_ndone(N, NULL, xi, x, 0));
     }
     Li = L->i;
@@ -1176,7 +1150,7 @@ csn* cs_lu(const SparseMatrix* A, const css* S, double tol) {
 }
 
 /* x=A\b where A is unsymmetric; b overwritten with solution */
-int cs_lusol(const SparseMatrix* A, double* b, int order, double tol) {
+int cs_lusol(const cs* A, double* b, int order, double tol) {
   double* x;
   css* S;
   csn* N;
@@ -1185,7 +1159,7 @@ int cs_lusol(const SparseMatrix* A, double* b, int order, double tol) {
   n = A->n;
   S = cs_sqr(A, order, 0); /* ordering and symbolic analysis */
   N = cs_lu(A, S, tol);    /* numeric LU factorization */
-  x = reinterpret_cast<double*>(cs_malloc(n, sizeof(double)));
+  x = cs_malloc(n, sizeof(double));
   ok = (S && N && x);
   if (ok) {
     cs_ipvec(n, N->Pinv, b, x); /* x = P*b */
@@ -1233,8 +1207,8 @@ void* cs_realloc(void* p, int n, size_t size, int* ok) {
 }
 
 /* find an augmenting path starting at column k and extend the match if found */
-static void cs_augment(int k, const SparseMatrix* A, int* jmatch, int* cheap,
-                       int* w, int* js, int* is, int* ps) {
+static void cs_augment(int k, const cs* A, int* jmatch, int* cheap, int* w,
+                       int* js, int* is, int* ps) {
   int found = 0, p, i = -1, *Ap = A->p, *Ai = A->i, head = 0, j;
   js[0] = k; /* start with just node k in jstack */
   while (head >= 0) {
@@ -1270,19 +1244,17 @@ static void cs_augment(int k, const SparseMatrix* A, int* jmatch, int* cheap,
 }
 
 /* find a maximum transveral */
-int* cs_maxtrans(
-    const SparseMatrix* A) /* returns jmatch [0..m-1]; imatch [0..n-1] */
+int* cs_maxtrans(const cs* A) /* returns jmatch [0..m-1]; imatch [0..n-1] */
 {
   int i, j, k, n, m, p, n2 = 0, m2 = 0, *Ap, *jimatch, *w, *cheap, *js, *is,
                         *ps, *Ai, *Cp, *jmatch, *imatch;
-  SparseMatrix* C;
+  cs* C;
   if (!A) return (NULL); /* check inputs */
   n = A->n;
   m = A->m;
   Ap = A->p;
   Ai = A->i;
-  w = jimatch = reinterpret_cast<int*>(
-      cs_calloc(m + n, sizeof(int))); /* allocate result */
+  w = jimatch = cs_calloc(m + n, sizeof(int)); /* allocate result */
   if (!jimatch) return (NULL);
   for (j = 0; j < n; j++) /* count non-empty rows and columns */
   {
@@ -1290,16 +1262,14 @@ int* cs_maxtrans(
     for (p = Ap[j]; p < Ap[j + 1]; p++) w[Ai[p]] = 1;
   }
   for (i = 0; i < m; i++) m2 += w[i];
-  C = (m2 < n2) ? cs_transpose(A, 0)
-                : ((SparseMatrix*)A); /* transpose if needed */
+  C = (m2 < n2) ? cs_transpose(A, 0) : ((cs*)A); /* transpose if needed */
   if (!C) return (cs_idone(jimatch, (m2 < n2) ? C : NULL, NULL, 0));
   n = C->n;
   m = C->m;
   Cp = C->p;
   jmatch = (m2 < n2) ? jimatch + n : jimatch;
   imatch = (m2 < n2) ? jimatch : jimatch + m;
-  w = reinterpret_cast<int*>(
-      cs_malloc(5 * n, sizeof(int))); /* allocate workspace */
+  w = cs_malloc(5 * n, sizeof(int)); /* allocate workspace */
   if (!w) return (cs_idone(jimatch, (m2 < n2) ? C : NULL, w, 0));
   cheap = w + n;
   js = w + 2 * n;
@@ -1316,10 +1286,10 @@ int* cs_maxtrans(
 }
 
 /* C = A*B */
-SparseMatrix* cs_multiply(const SparseMatrix* A, const SparseMatrix* B) {
+cs* cs_multiply(const cs* A, const cs* B) {
   int p, j, nz = 0, anz, *Cp, *Ci, *Bp, m, n, bnz, *w, values, *Bi;
   double *x, *Bx, *Cx;
-  SparseMatrix* C;
+  cs* C;
   if (!A || !B) return (NULL); /* check inputs */
   m = A->m;
   anz = A->p[A->n];
@@ -1328,14 +1298,14 @@ SparseMatrix* cs_multiply(const SparseMatrix* A, const SparseMatrix* B) {
   Bi = B->i;
   Bx = B->x;
   bnz = Bp[n];
-  w = reinterpret_cast<int*>(cs_calloc(m, sizeof(int)));
+  w = cs_calloc(m, sizeof(int));
   values = (A->x != NULL) && (Bx != NULL);
-  x = values ? reinterpret_cast<double*>(cs_malloc(m, sizeof(double))) : NULL;
+  x = values ? cs_malloc(m, sizeof(double)) : NULL;
   C = cs_spalloc(m, n, anz + bnz, values, 0);
   if (!C || !w || (values && !x)) return (cs_done(C, w, x, 0));
   Cp = C->p;
   for (j = 0; j < n; j++) {
-    if (nz + m > C->num_nonzero && !cs_sprealloc(C, 2 * (C->num_nonzero) + m)) {
+    if (nz + m > C->nzmax && !cs_sprealloc(C, 2 * (C->nzmax) + m)) {
       return (cs_done(C, w, x, 0)); /* out of memory */
     }
     Ci = C->i;
@@ -1353,7 +1323,7 @@ SparseMatrix* cs_multiply(const SparseMatrix* A, const SparseMatrix* B) {
 }
 
 /* 1-norm of a sparse matrix = max (sum (abs (A))), largest column sum */
-double cs_norm(const SparseMatrix* A) {
+double cs_norm(const cs* A) {
   int p, j, n, *Ap;
   double *Ax, norm = 0, s;
   if (!A || !A->x) return (-1); /* check inputs */
@@ -1368,11 +1338,10 @@ double cs_norm(const SparseMatrix* A) {
 }
 
 /* C = A(P,Q) where P and Q are permutations of 0..m-1 and 0..n-1. */
-SparseMatrix* cs_permute(const SparseMatrix* A, const int* Pinv, const int* Q,
-                         int values) {
+cs* cs_permute(const cs* A, const int* Pinv, const int* Q, int values) {
   int p, j, k, nz = 0, m, n, *Ap, *Ai, *Cp, *Ci;
   double *Cx, *Ax;
-  SparseMatrix* C;
+  cs* C;
   if (!A) return (NULL); /* check inputs */
   m = A->m;
   n = A->n;
@@ -1399,10 +1368,9 @@ SparseMatrix* cs_permute(const SparseMatrix* A, const int* Pinv, const int* Q,
 /* Pinv = P', or P = Pinv' */
 int* cs_pinv(int const* P, int n) {
   int k, *Pinv;
-  if (!P) return (NULL); /* P = NULL denotes identity */
-  Pinv =
-      reinterpret_cast<int*>(cs_malloc(n, sizeof(int))); /* allocate resuult */
-  if (!Pinv) return (NULL);                              /* out of memory */
+  if (!P) return (NULL);                  /* P = NULL denotes identity */
+  Pinv = cs_malloc(n, sizeof(int));       /* allocate resuult */
+  if (!Pinv) return (NULL);               /* out of memory */
   for (k = 0; k < n; k++) Pinv[P[k]] = k; /* invert the permutation */
   return (Pinv);                          /* return result */
 }
@@ -1410,10 +1378,9 @@ int* cs_pinv(int const* P, int n) {
 /* post order a forest */
 int* cs_post(int n, const int* parent) {
   int j, k = 0, *post, *w, *head, *next, *stack;
-  if (!parent) return (NULL); /* check inputs */
-  post =
-      reinterpret_cast<int*>(cs_malloc(n, sizeof(int))); /* allocate result */
-  w = reinterpret_cast<int*>(cs_malloc(3 * n, sizeof(int))); /* 3*n workspace */
+  if (!parent) return (NULL);        /* check inputs */
+  post = cs_malloc(n, sizeof(int));  /* allocate result */
+  w = cs_malloc(3 * n, sizeof(int)); /* 3*n workspace */
   head = w;
   next = w + n;
   stack = w + 2 * n;
@@ -1433,7 +1400,7 @@ int* cs_post(int n, const int* parent) {
 }
 
 /* print a sparse matrix */
-int cs_print(const SparseMatrix* A, int brief) {
+int cs_print(const cs* A, int brief) {
   int p, j, m, n, nzmax, nz, *Ap, *Ai;
   double* Ax;
   if (!A) {
@@ -1445,7 +1412,7 @@ int cs_print(const SparseMatrix* A, int brief) {
   Ap = A->p;
   Ai = A->i;
   Ax = A->x;
-  nzmax = A->num_nonzero;
+  nzmax = A->nzmax;
   nz = A->nz;
   printf("CSparse Version %d.%d.%d, %s.  %s\n", CS_VER, CS_SUBVER, CS_SUBSUB,
          CS_DATE, CS_COPYRIGHT);
@@ -1484,11 +1451,11 @@ int cs_pvec(int n, const int* P, const double* b, double* x) {
 }
 
 /* sparse QR factorization [V,beta,p,R] = qr (A) */
-csn* cs_qr(const SparseMatrix* A, const css* S) {
+csn* cs_qr(const cs* A, const css* S) {
   double *Rx, *Vx, *Ax, *Beta, *x;
   int i, k, p, m, n, vnz, p1, top, m2, len, col, rnz, *s, *leftmost, *Ap, *Ai,
       *parent, *Rp, *Ri, *Vp, *Vi, *w, *Pinv, *Q;
-  SparseMatrix *R, *V;
+  cs *R, *V;
   csn* N;
   if (!A || !S || !S->parent || !S->Pinv) return (NULL); /* check inputs */
   m = A->m;
@@ -1503,15 +1470,15 @@ csn* cs_qr(const SparseMatrix* A, const css* S) {
   vnz = S->lnz;
   rnz = S->unz;
   leftmost = Pinv + m + n;
-  w = reinterpret_cast<int*>(cs_malloc(m2 + n, sizeof(int)));
-  x = reinterpret_cast<double*>(cs_malloc(m2, sizeof(double)));
-  N = reinterpret_cast<csn*>(cs_calloc(1, sizeof(csn)));
+  w = cs_malloc(m2 + n, sizeof(int));
+  x = cs_malloc(m2, sizeof(double));
+  N = cs_calloc(1, sizeof(csn));
   if (!w || !x || !N) return (cs_ndone(N, NULL, w, x, 0));
   s = w + m2;                              /* size n */
   for (k = 0; k < m2; k++) x[k] = 0;       /* clear workspace x */
   N->L = V = cs_spalloc(m2, n, vnz, 1, 0); /* allocate V */
   N->U = R = cs_spalloc(m2, n, rnz, 1, 0); /* allocate R, m2-by-n */
-  N->B = Beta = reinterpret_cast<double*>(cs_malloc(n, sizeof(double)));
+  N->B = Beta = cs_malloc(n, sizeof(double));
   if (!R || !V || !Beta) return (cs_ndone(N, NULL, w, x, 0));
   Rp = R->p;
   Ri = R->i;
@@ -1570,11 +1537,11 @@ csn* cs_qr(const SparseMatrix* A, const css* S) {
 }
 
 /* x=A\b where A can be rectangular; b overwritten with solution */
-int cs_qrsol(const SparseMatrix* A, double* b, int order) {
+int cs_qrsol(const cs* A, double* b, int order) {
   double* x;
   css* S;
   csn* N;
-  SparseMatrix* AT = NULL;
+  cs* AT = NULL;
   int k, m, n, ok;
   if (!A || !b) return (0); /* check inputs */
   n = A->n;
@@ -1582,7 +1549,7 @@ int cs_qrsol(const SparseMatrix* A, double* b, int order) {
   if (m >= n) {
     S = cs_sqr(A, order, 1); /* ordering and symbolic analysis */
     N = cs_qr(A, S);         /* numeric QR factorization */
-    x = reinterpret_cast<double*>(cs_calloc(S ? S->m2 : 1, sizeof(double)));
+    x = cs_calloc(S ? S->m2 : 1, sizeof(double));
     ok = (S && N && x);
     if (ok) {
       cs_ipvec(m, S->Pinv, b, x); /* x(0:m-1) = P*b(0:m-1) */
@@ -1597,7 +1564,7 @@ int cs_qrsol(const SparseMatrix* A, double* b, int order) {
     AT = cs_transpose(A, 1);  /* Ax=b is underdetermined */
     S = cs_sqr(AT, order, 1); /* ordering and symbolic analysis */
     N = cs_qr(AT, S);         /* numeric QR factorization of A' */
-    x = reinterpret_cast<double*>(cs_calloc(S ? S->m2 : 1, sizeof(double)));
+    x = cs_calloc(S ? S->m2 : 1, sizeof(double));
     ok = (AT && S && N && x);
     if (ok) {
       cs_pvec(m, S->Q, b, x);      /* x(0:m-1) = Q'*b (permutation) */
@@ -1618,8 +1585,7 @@ int cs_qrsol(const SparseMatrix* A, double* b, int order) {
 
 /* xi [top...n-1] = nodes reachable from graph of L*P' via nodes in B(:,k).
  * xi [n...2n-1] used as workspace */
-int cs_reach(SparseMatrix* L, const SparseMatrix* B, int k, int* xi,
-             const int* Pinv) {
+int cs_reach(cs* L, const cs* B, int k, int* xi, const int* Pinv) {
   int p, n, top, *Bp, *Bi, *Lp;
   if (!L || !B || !xi) return (-1);
   n = L->n;
@@ -1638,8 +1604,8 @@ int cs_reach(SparseMatrix* L, const SparseMatrix* B, int k, int* xi,
 }
 
 /* x = x + beta * A(:,j), where x is a dense vector and A(:,j) is sparse */
-int cs_scatter(const SparseMatrix* A, int j, double beta, int* w, double* x,
-               int mark, SparseMatrix* C, int nz) {
+int cs_scatter(const cs* A, int j, double beta, int* w, double* x, int mark,
+               cs* C, int nz) {
   int i, p, *Ap, *Ai, *Ci;
   double* Ax;
   if (!A || !w || !C) return (-1); /* ensure inputs are valid */
@@ -1660,19 +1626,17 @@ int cs_scatter(const SparseMatrix* A, int j, double beta, int* w, double* x,
 }
 
 /* find the strongly connected components of a square matrix */
-DmpermResults* cs_scc(
-    SparseMatrix* A) /* matrix A temporarily modified, then restored */
+csd* cs_scc(cs* A) /* matrix A temporarily modified, then restored */
 {
   int n, i, k, b = 0, top, *xi, *pstack, *P, *R, *Ap, *ATp;
-  SparseMatrix* AT;
-  DmpermResults* D;
+  cs* AT;
+  csd* D;
   if (!A) return (NULL);
   n = A->n;
   Ap = A->p;
   D = cs_dalloc(n, 0);
-  AT = cs_transpose(A, 0); /* AT = A' */
-  xi = reinterpret_cast<int*>(
-      cs_malloc(2 * n, sizeof(int))); /* allocate workspace */
+  AT = cs_transpose(A, 0);            /* AT = A' */
+  xi = cs_malloc(2 * n, sizeof(int)); /* allocate workspace */
   pstack = xi + n;
   if (!D || !AT || !xi) return (cs_ddone(D, AT, xi, 0));
   P = D->P;
@@ -1700,17 +1664,16 @@ DmpermResults* cs_scc(
 }
 
 /* ordering and symbolic analysis for a Cholesky factorization */
-css* cs_schol(const SparseMatrix* A, int order) {
+css* cs_schol(const cs* A, int order) {
   int n, *c, *post, *P;
-  SparseMatrix* C;
+  cs* C;
   css* S;
   if (!A) return (NULL); /* check inputs */
   n = A->n;
-  S = reinterpret_cast<css*>(
-      cs_calloc(1, sizeof(css))); /* allocate symbolic analysis */
-  if (!S) return (NULL);          /* out of memory */
-  P = cs_amd(A, order);           /* P = amd(A+A'), or natural */
-  S->Pinv = cs_pinv(P, n);        /* find inverse permutation */
+  S = cs_calloc(1, sizeof(css)); /* allocate symbolic analysis */
+  if (!S) return (NULL);         /* out of memory */
+  P = cs_amd(A, order);          /* P = amd(A+A'), or natural */
+  S->Pinv = cs_pinv(P, n);       /* find inverse permutation */
   cs_free(P);
   if (order >= 0 && !S->Pinv) return (cs_sfree(S));
   C = cs_symperm(A, S->Pinv, 0);        /* C = spones(triu(A(P,P))) */
@@ -1719,16 +1682,15 @@ css* cs_schol(const SparseMatrix* A, int order) {
   c = cs_counts(C, S->parent, post, 0); /* find column counts of chol(C) */
   cs_free(post);
   cs_spfree(C);
-  S->cp = reinterpret_cast<int*>(
-      cs_malloc(n + 1, sizeof(int))); /* find column pointers for L */
+  S->cp = cs_malloc(n + 1, sizeof(int)); /* find column pointers for L */
   S->unz = S->lnz = cs_cumsum(S->cp, c, n);
   cs_free(c);
   return ((S->lnz >= 0) ? S : cs_sfree(S));
 }
 
 /* solve Lx=b(:,k), leaving pattern in xi[top..n-1], values scattered in x. */
-int cs_splsolve(SparseMatrix* L, const SparseMatrix* B, int k, int* xi,
-                double* x, const int* Pinv) {
+int cs_splsolve(cs* L, const cs* B, int k, int* xi, double* x,
+                const int* Pinv) {
   int j, jnew, p, px, top, n, *Lp, *Li, *Bp, *Bi;
   double *Lx, *Bx;
   if (!L || !B || !xi || !x) return (-1);
@@ -1754,12 +1716,10 @@ int cs_splsolve(SparseMatrix* L, const SparseMatrix* B, int k, int* xi,
 }
 
 /* compute vnz, Pinv, leftmost, m2 from A and parent */
-static int* cs_vcount(const SparseMatrix* A, const int* parent, int* m2,
-                      int* vnz) {
+static int* cs_vcount(const cs* A, const int* parent, int* m2, int* vnz) {
   int i, k, p, pa, n = A->n, m = A->m, *Ap = A->p, *Ai = A->i;
-  int *Pinv = reinterpret_cast<int*>(cs_malloc(2 * m + n, sizeof(int))),
-      *leftmost = Pinv + m + n;
-  int* w = reinterpret_cast<int*>(cs_malloc(m + 3 * n, sizeof(int)));
+  int *Pinv = cs_malloc(2 * m + n, sizeof(int)), *leftmost = Pinv + m + n;
+  int* w = cs_malloc(m + 3 * n, sizeof(int));
   int *next = w, *head = w + m, *tail = w + m + n, *nque = w + m + 2 * n;
   if (!Pinv || !w) return (cs_idone(Pinv, NULL, w, 0));
   for (k = 0; k < n; k++) head[k] = -1; /* queue k is empty */
@@ -1804,20 +1764,18 @@ static int* cs_vcount(const SparseMatrix* A, const int* parent, int* m2,
 }
 
 /* symbolic analysis for QR or LU */
-css* cs_sqr(const SparseMatrix* A, int order, int qr) {
+css* cs_sqr(const cs* A, int order, int qr) {
   int n, k, ok = 1, *post;
   css* S;
   if (!A) return (NULL); /* check inputs */
   n = A->n;
-  S = reinterpret_cast<css*>(
-      cs_calloc(1, sizeof(css))); /* allocate symbolic analysis */
-  if (!S) return (NULL);          /* out of memory */
-  S->Q = cs_amd(A, order);        /* fill-reducing ordering */
+  S = cs_calloc(1, sizeof(css)); /* allocate symbolic analysis */
+  if (!S) return (NULL);         /* out of memory */
+  S->Q = cs_amd(A, order);       /* fill-reducing ordering */
   if (order >= 0 && !S->Q) return (cs_sfree(S));
   if (qr) /* QR symbolic analysis */
   {
-    SparseMatrix* C =
-        (order >= 0) ? cs_permute(A, NULL, S->Q, 0) : ((SparseMatrix*)A);
+    cs* C = (order >= 0) ? cs_permute(A, NULL, S->Q, 0) : ((cs*)A);
     S->parent = cs_etree(C, 1); /* etree of C'*C, where C=A(:,Q) */
     post = cs_post(n, S->parent);
     S->cp = cs_counts(C, S->parent, post, 1); /* col counts chol(C'*C) */
@@ -1836,17 +1794,17 @@ css* cs_sqr(const SparseMatrix* A, int order, int qr) {
 }
 
 /* C = A(p,p) where A and C are symmetric the upper part stored, Pinv not P */
-SparseMatrix* cs_symperm(const SparseMatrix* A, const int* Pinv, int values) {
+cs* cs_symperm(const cs* A, const int* Pinv, int values) {
   int i, j, p, q, i2, j2, n, *Ap, *Ai, *Cp, *Ci, *w;
   double *Cx, *Ax;
-  SparseMatrix* C;
+  cs* C;
   if (!A) return (NULL);
   n = A->n;
   Ap = A->p;
   Ai = A->i;
   Ax = A->x;
   C = cs_spalloc(n, n, Ap[n], values && (Ax != NULL), 0);
-  w = reinterpret_cast<int*>(cs_calloc(n, sizeof(int)));
+  w = cs_calloc(n, sizeof(int));
   if (!C || !w) return (cs_done(C, w, NULL, 0)); /* out of memory */
   Cp = C->p;
   Ci = C->i;
@@ -1896,10 +1854,10 @@ int cs_tdfs(int j, int k, int* head, const int* next, int* post, int* stack) {
 }
 
 /* C = A' */
-SparseMatrix* cs_transpose(const SparseMatrix* A, int values) {
+cs* cs_transpose(const cs* A, int values) {
   int p, q, j, *Cp, *Ci, n, m, *Ap, *Ai, *w;
   double *Cx, *Ax;
-  SparseMatrix* C;
+  cs* C;
   if (!A) return (NULL);
   m = A->m;
   n = A->n;
@@ -1907,7 +1865,7 @@ SparseMatrix* cs_transpose(const SparseMatrix* A, int values) {
   Ai = A->i;
   Ax = A->x;
   C = cs_spalloc(n, m, Ap[n], values && Ax, 0); /* allocate result */
-  w = reinterpret_cast<int*>(cs_calloc(m, sizeof(int)));
+  w = cs_calloc(m, sizeof(int));
   if (!C || !w) return (cs_done(C, w, NULL, 0)); /* out of memory */
   Cp = C->p;
   Ci = C->i;
@@ -1924,10 +1882,10 @@ SparseMatrix* cs_transpose(const SparseMatrix* A, int values) {
 }
 
 /* C = compressed-column form of a triplet matrix T */
-SparseMatrix* cs_triplet(const SparseMatrix* T) {
+cs* cs_triplet(const cs* T) {
   int m, n, nz, p, k, *Cp, *Ci, *w, *Ti, *Tj;
   double *Cx, *Tx;
-  SparseMatrix* C;
+  cs* C;
   if (!T) return (NULL); /* check inputs */
   m = T->m;
   n = T->n;
@@ -1935,9 +1893,9 @@ SparseMatrix* cs_triplet(const SparseMatrix* T) {
   Tj = T->p;
   Tx = T->x;
   nz = T->nz;
-  C = cs_spalloc(m, n, nz, Tx != NULL, 0);               /* allocate result */
-  w = reinterpret_cast<int*>(cs_calloc(n, sizeof(int))); /* get workspace */
-  if (!C || !w) return (cs_done(C, w, NULL, 0));         /* out of memory */
+  C = cs_spalloc(m, n, nz, Tx != NULL, 0);       /* allocate result */
+  w = cs_calloc(n, sizeof(int));                 /* get workspace */
+  if (!C || !w) return (cs_done(C, w, NULL, 0)); /* out of memory */
   Cp = C->p;
   Ci = C->i;
   Cx = C->x;
@@ -1951,8 +1909,7 @@ SparseMatrix* cs_triplet(const SparseMatrix* T) {
 }
 
 /* sparse Cholesky update/downdate, L*L' + sigma*w*w' (sigma = +1 or -1) */
-int cs_updown(SparseMatrix* L, int sigma, const SparseMatrix* C,
-              const int* parent) {
+int cs_updown(cs* L, int sigma, const cs* C, const int* parent) {
   int p, f, j, *Lp, *Li, *Cp, *Ci;
   double *Lx, *Cx, alpha, beta = 1, delta, gamma, w1, w2, *w, n, beta2 = 1;
   if (!L || !C || !parent) return (0);
@@ -1964,7 +1921,7 @@ int cs_updown(SparseMatrix* L, int sigma, const SparseMatrix* C,
   Ci = C->i;
   Cx = C->x;
   if ((p = Cp[0]) >= Cp[1]) return (1); /* return if C empty */
-  w = reinterpret_cast<double*>(cs_malloc(n, sizeof(double)));
+  w = cs_malloc(n, sizeof(double));
   if (!w) return (0);
   f = Ci[p];
   for (; p < Cp[1]; p++) f = CS_MIN(f, Ci[p]);      /* f = min (find (C)) */
@@ -1992,7 +1949,7 @@ int cs_updown(SparseMatrix* L, int sigma, const SparseMatrix* C,
 }
 
 /* solve Ux=b where x and b are dense.  x=b on input, solution on output. */
-int cs_usolve(const SparseMatrix* U, double* x) {
+int cs_usolve(const cs* U, double* x) {
   int p, j, n, *Up, *Ui;
   double* Ux;
   if (!U || !x) return (0); /* check inputs */
@@ -2010,46 +1967,39 @@ int cs_usolve(const SparseMatrix* U, double* x) {
 }
 
 /* allocate a sparse matrix (triplet form or compressed-column form) */
-SparseMatrix* cs_spalloc(int m, int n, int nzmax, int values, int triplet) {
-  SparseMatrix* A = reinterpret_cast<SparseMatrix*>(
-      cs_calloc(1, sizeof(SparseMatrix))); /* allocate the cs struct */
-  if (!A) return (NULL);                   /* out of memory */
-  A->m = m;                                /* define dimensions and nzmax */
+cs* cs_spalloc(int m, int n, int nzmax, int values, int triplet) {
+  cs* A = cs_calloc(1, sizeof(cs)); /* allocate the cs struct */
+  if (!A) return (NULL);            /* out of memory */
+  A->m = m;                         /* define dimensions and nzmax */
   A->n = n;
-  A->num_nonzero = nzmax = CS_MAX(nzmax, 1);
+  A->nzmax = nzmax = CS_MAX(nzmax, 1);
   A->nz = triplet ? 0 : -1; /* allocate triplet or comp.col */
-  A->p =
-      reinterpret_cast<int*>(cs_malloc(triplet ? nzmax : n + 1, sizeof(int)));
-  A->i = reinterpret_cast<int*>(cs_malloc(nzmax, sizeof(int)));
-  A->x = values ? reinterpret_cast<double*>(cs_malloc(nzmax, sizeof(double)))
-                : NULL;
+  A->p = cs_malloc(triplet ? nzmax : n + 1, sizeof(int));
+  A->i = cs_malloc(nzmax, sizeof(int));
+  A->x = values ? cs_malloc(nzmax, sizeof(double)) : NULL;
   return ((!A->p || !A->i || (values && !A->x)) ? cs_spfree(A) : A);
 }
 
 /* change the max # of entries sparse matrix */
-int cs_sprealloc(SparseMatrix* A, int nzmax) {
+int cs_sprealloc(cs* A, int nzmax) {
   int ok, oki, okj = 1, okx = 1;
   if (!A) return (0);
   nzmax = (nzmax <= 0) ? (A->p[A->n]) : nzmax;
-  A->i = reinterpret_cast<int*>(cs_realloc(A->i, nzmax, sizeof(int), &oki));
-  if (A->nz >= 0)
-    A->p = reinterpret_cast<int*>(cs_realloc(A->p, nzmax, sizeof(int), &okj));
-  if (A->x)
-    A->x = reinterpret_cast<double*>(
-        cs_realloc(A->x, nzmax, sizeof(double), &okx));
+  A->i = cs_realloc(A->i, nzmax, sizeof(int), &oki);
+  if (A->nz >= 0) A->p = cs_realloc(A->p, nzmax, sizeof(int), &okj);
+  if (A->x) A->x = cs_realloc(A->x, nzmax, sizeof(double), &okx);
   ok = (oki && okj && okx);
-  if (ok) A->num_nonzero = nzmax;
+  if (ok) A->nzmax = nzmax;
   return (ok);
 }
 
 /* free a sparse matrix */
-SparseMatrix* cs_spfree(SparseMatrix* A) {
+cs* cs_spfree(cs* A) {
   if (!A) return (NULL); /* do nothing if A already NULL */
   cs_free(A->p);
   cs_free(A->i);
   cs_free(A->x);
-  return reinterpret_cast<SparseMatrix*>(
-      cs_free(A)); /* free the cs struct and return NULL */
+  return (cs_free(A)); /* free the cs struct and return NULL */
 }
 
 /* free a numeric factorization */
@@ -2059,8 +2009,7 @@ csn* cs_nfree(csn* N) {
   cs_spfree(N->U);
   cs_free(N->Pinv);
   cs_free(N->B);
-  return reinterpret_cast<csn*>(
-      cs_free(N)); /* free the csn struct and return NULL */
+  return (cs_free(N)); /* free the csn struct and return NULL */
 }
 
 /* free a symbolic factorization */
@@ -2070,50 +2019,47 @@ css* cs_sfree(css* S) {
   cs_free(S->Q);
   cs_free(S->parent);
   cs_free(S->cp);
-  return reinterpret_cast<css*>(
-      cs_free(S)); /* free the css struct and return NULL */
+  return (cs_free(S)); /* free the css struct and return NULL */
 }
 
 /* allocate a cs_dmperm or cs_scc result */
-DmpermResults* cs_dalloc(int m, int n) {
-  DmpermResults* D;
-  D = reinterpret_cast<DmpermResults*>(cs_calloc(1, sizeof(DmpermResults)));
+csd* cs_dalloc(int m, int n) {
+  csd* D;
+  D = cs_calloc(1, sizeof(csd));
   if (!D) return (NULL);
-  D->P = reinterpret_cast<int*>(cs_malloc(m, sizeof(int)));
-  D->R = reinterpret_cast<int*>(cs_malloc(m + 6, sizeof(int)));
-  D->Q = reinterpret_cast<int*>(cs_malloc(n, sizeof(int)));
-  D->S = reinterpret_cast<int*>(cs_malloc(n + 6, sizeof(int)));
+  D->P = cs_malloc(m, sizeof(int));
+  D->R = cs_malloc(m + 6, sizeof(int));
+  D->Q = cs_malloc(n, sizeof(int));
+  D->S = cs_malloc(n + 6, sizeof(int));
   return ((!D->P || !D->R || !D->Q || !D->S) ? cs_dfree(D) : D);
 }
 
 /* free a cs_dmperm or cs_scc result */
-DmpermResults* cs_dfree(DmpermResults* D) {
+csd* cs_dfree(csd* D) {
   if (!D) return (NULL); /* do nothing if D already NULL */
   cs_free(D->P);
   cs_free(D->Q);
   cs_free(D->R);
   cs_free(D->S);
-  return reinterpret_cast<DmpermResults*>(cs_free(D));
+  return (cs_free(D));
 }
 
 /* free workspace and return a sparse matrix result */
-SparseMatrix* cs_done(SparseMatrix* C, void* w, void* x, int ok) {
+cs* cs_done(cs* C, void* w, void* x, int ok) {
   cs_free(w); /* free workspace */
   cs_free(x);
   return (ok ? C : cs_spfree(C)); /* return result if OK, else free it */
 }
 
 /* free workspace and return int array result */
-int* cs_idone(int* p, SparseMatrix* C, void* w, int ok) {
-  cs_spfree(C); /* free temporary matrix */
-  cs_free(w);   /* free workspace */
-  return (ok ? p
-             : reinterpret_cast<int*>(
-                   cs_free(p))); /* return result if OK, else free it */
+int* cs_idone(int* p, cs* C, void* w, int ok) {
+  cs_spfree(C);                 /* free temporary matrix */
+  cs_free(w);                   /* free workspace */
+  return (ok ? p : cs_free(p)); /* return result if OK, else free it */
 }
 
 /* free workspace and return a numeric factorization (Cholesky, LU, or QR) */
-csn* cs_ndone(csn* N, SparseMatrix* C, void* w, void* x, int ok) {
+csn* cs_ndone(csn* N, cs* C, void* w, void* x, int ok) {
   cs_spfree(C); /* free temporary matrix */
   cs_free(w);   /* free workspace */
   cs_free(x);
@@ -2121,14 +2067,14 @@ csn* cs_ndone(csn* N, SparseMatrix* C, void* w, void* x, int ok) {
 }
 
 /* free workspace and return a csd result */
-DmpermResults* cs_ddone(DmpermResults* D, SparseMatrix* C, void* w, int ok) {
+csd* cs_ddone(csd* D, cs* C, void* w, int ok) {
   cs_spfree(C);                  /* free temporary matrix */
   cs_free(w);                    /* free workspace */
   return (ok ? D : cs_dfree(D)); /* return result if OK, else free it */
 }
 
 /* solve U'x=b where x and b are dense.  x=b on input, solution on output. */
-int cs_utsolve(const SparseMatrix* U, double* x) {
+int cs_utsolve(const cs* U, double* x) {
   int p, j, n, *Up, *Ui;
   double* Ux;
   if (!U || !x) return (0); /* check inputs */
@@ -2144,5 +2090,3 @@ int cs_utsolve(const SparseMatrix* U, double* x) {
   }
   return (1);
 }
-
-}  // namespace csparse

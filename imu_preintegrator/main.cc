@@ -1,182 +1,217 @@
-#include <chrono>
+#include <deque>
 #include <iostream>
-#include <thread>
+#include <memory>
 
-#include "multi_thread_executor.h"
+#include "imu_preintegrator.h"
 
-using namespace std::chrono_literals;
+void TrinImuDataQueue(std::deque<imu_preintegrator::ImuData>* imu_data_queue,
+                      const double trimming_start_time) {
+  if (imu_data_queue->empty()) return;
 
-struct Feature {
-  float x{0.0f};
-  float y{0.0f};
-  float response{0.0f};
-  int octave{0};
+  while (!imu_data_queue->empty() &&
+         imu_data_queue->front().time < trimming_start_time) {
+    imu_data_queue->pop_front();
+  }
+
+  static constexpr double kMaxQueueSize = 5000;
+  if (imu_data_queue->size() > kMaxQueueSize) imu_data_queue->pop_front();
 };
 
-std::vector<Feature> FindFeatures(const int num_features,
-                                  const int fast_threshold,
-                                  const int num_scale_level,
-                                  const float scale_factor) {
-  std::vector<Feature> feature_list(num_features);
-  std::vector<unsigned long long> ss;
-  // std::this_thread::sleep_for(std::chrono::milliseconds(num_features));
-  unsigned long long sum = 0;
-  for (unsigned long long index = 0;
-       index < static_cast<unsigned long long>(num_features) * 2000000;
-       ++index) {
-    sum += index;
-    ss.push_back(sum);
-  }
-  for (int index = 0; index < num_features; ++index) {
-    feature_list[index].octave = ss[index];
-  }
-  std::cerr << std::string(std::to_string(num_features) + " : Ok\n");
+std::deque<imu_preintegrator::ImuData> FindImuDataRange(
+    const std::deque<imu_preintegrator::ImuData>& raw_data_queue,
+    const double time_start, const double time_end) {
+  std::deque<imu_preintegrator::ImuData> imu_data_in_range;
 
-  return feature_list;
+  if (raw_data_queue.empty()) return {};
+  if (raw_data_queue.front().time > time_end) return {};
+  if (raw_data_queue.back().time < time_start) return {};
+
+  return imu_data_in_range;
 };
 
 int main() {
-  using FeatureList = std::vector<Feature>;
+  imu_preintegrator::Parameters parameters;
+  parameters.noise.measurement.linear_acc = 1e-5;
+  parameters.noise.measurement.angular_vel = 1e-5;
+  parameters.noise.bias.linear_acc = 1e-7;
+  parameters.noise.bias.angular_vel = 1e-7;
+  imu_preintegrator::ImuBias initial_bias;
+  initial_bias.linear_acc << -0.01, 0.01, 0.05;
+  initial_bias.angular_vel << 0.006, 0.01, -0.02;
 
-  int num_threads = 16;
-  std::vector<int> select_cpu_nums(num_threads);
-  select_cpu_nums[0] = 0;
-  select_cpu_nums[1] = 1;
-  select_cpu_nums[2] = 2;
-  select_cpu_nums[3] = 3;
+  // Simulate data
+  std::deque<imu_preintegrator::ImuData> imu_queue_raw;
+  imu_preintegrator::ImuData data;
+  data.time = 0.0;
+  data.linear_acc = {0.1, 0.0, 9.81};
+  data.linear_acc = data.linear_acc / data.linear_acc.norm() * 9.81;
+  data.angular_vel = {0.0, 0.0, 0.00};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.0};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.0};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.0};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.0};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.01};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.01};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.02};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.08};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.03};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.01};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.0};
+  imu_queue_raw.push_back(data);
+  data.time += 0.005;
+  data.angular_vel = {0.0, 0.0, 0.0};
+  imu_queue_raw.push_back(data);
 
-  // Async
-  std::chrono::system_clock::time_point t1 = std::chrono::system_clock::now();
-  std::vector<std::future<FeatureList>> vector_of_future_feature_list_for_async;
-  vector_of_future_feature_list_for_async.reserve(8);
+  imu_preintegrator::ImuPreintegrator imu_preint_true(parameters,
+                                                      {{0, 0, 0}, {0, 0, 0}});
+  for (const auto& d : imu_queue_raw) imu_preint_true.Propagate(d);
 
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 400, 20, 0, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 200, 20, 1, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 100, 20, 1, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 50, 20, 2, 0.9f));
+  const auto imu_factor_raw = imu_preint_true.GetImuFactor();
+  std::cerr << "Raw:\n";
+  std::cerr << "tij:\n" << imu_factor_raw.tij << "\n";
+  std::cerr << "R:\n" << imu_factor_raw.delRij << "\n";
+  std::cerr << "p:" << imu_factor_raw.delpij.transpose() << "\n";
+  std::cerr << "v:" << imu_factor_raw.delvij.transpose() << "\n";
+  std::cerr << std::endl;
 
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 400, 20, 0, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 200, 20, 1, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 100, 20, 1, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 50, 20, 2, 0.9f));
-
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 400, 20, 0, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 200, 20, 1, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 100, 20, 1, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 50, 20, 2, 0.9f));
-
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 400, 20, 0, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 200, 20, 1, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 100, 20, 1, 0.9f));
-  vector_of_future_feature_list_for_async.emplace_back(
-      std::async(std::launch::async, FindFeatures, 50, 20, 2, 0.9f));
-
-  FeatureList all_feature_list_for_async;
-  for (size_t index = 0; index < vector_of_future_feature_list_for_async.size();
-       ++index) {
-    auto feature_list = vector_of_future_feature_list_for_async[index].get();
-    for (size_t feature_index = 0; feature_index < feature_list.size();
-         ++feature_index) {
-      all_feature_list_for_async.push_back(feature_list.at(feature_index));
-    }
+  imu_preintegrator::ImuPreintegrator imu_preint_biased(parameters,
+                                                        {{0, 0, 0}, {0, 0, 0}});
+  for (auto& meas : imu_queue_raw) {
+    meas.linear_acc += initial_bias.linear_acc;
+    meas.angular_vel += initial_bias.angular_vel;
   }
-  std::cerr << "all_feature_list_for_async.size() : "
-            << all_feature_list_for_async.size() << std::endl;
-  std::chrono::duration<double> dt = std::chrono::system_clock::now() - t1;
-  std::cout << "std::async time : " << dt.count() << "seconds" << std::endl;
+  for (const auto& meas : imu_queue_raw) imu_preint_biased.Propagate(meas);
 
-  // ThreadPool pool(num_threads, select_cpu_nums);
-  std::unique_ptr<MultiThreadExecutor> multi_thread_executor =
-      std::make_unique<MultiThreadExecutor>(num_threads);
+  const auto imu_factor_biased = imu_preint_biased.GetImuFactor();
+  std::cerr << "Biased:\n";
+  std::cerr << "tij:\n" << imu_factor_biased.tij << "\n";
+  std::cerr << "R:\n" << imu_factor_biased.delRij << "\n";
+  std::cerr << "p:" << imu_factor_biased.delpij.transpose() << "\n";
+  std::cerr << "v:" << imu_factor_biased.delvij.transpose() << "\n";
+  std::cerr << std::endl;
 
-  std::vector<std::future<FeatureList>> vector_of_future_feature_list;
-  vector_of_future_feature_list.reserve(8);
-
-  t1 = std::chrono::system_clock::now();
-
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 400, 20, 0, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 200, 20, 1, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 100, 20, 1, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 50, 20, 2, 0.9f));
-
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 400, 20, 0, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 200, 20, 1, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 100, 20, 1, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 50, 20, 2, 0.9f));
-
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 400, 20, 0, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 200, 20, 1, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 100, 20, 1, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 50, 20, 2, 0.9f));
-
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 400, 20, 0, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 200, 20, 1, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 100, 20, 1, 0.9f));
-  vector_of_future_feature_list.emplace_back(
-      multi_thread_executor->Execute(FindFeatures, 50, 20, 2, 0.9f));
-
-  FeatureList all_feature_list;
-  for (size_t index = 0; index < vector_of_future_feature_list.size();
-       ++index) {
-    auto feature_list = vector_of_future_feature_list[index].get();
-    for (size_t feature_index = 0; feature_index < feature_list.size();
-         ++feature_index) {
-      all_feature_list.push_back(feature_list.at(feature_index));
-    }
+  // Updated
+  for (int iter = 0; iter < 10; ++iter) {
+    imu_preintegrator::ImuBias ba;
+    ba.linear_acc = initial_bias.linear_acc / (10 - iter);
+    ba.angular_vel = initial_bias.angular_vel / (10 - iter);
+    imu_preint_biased.CorrectImuFactorByUpdatedBias(ba);
   }
-  std::cerr << "all_feature_list.size() : " << all_feature_list.size()
-            << std::endl;
+  // imu_preint_biased.CorrectImuFactorByUpdatedBias(initial_bias);
 
-  dt = std::chrono::system_clock::now() - t1;
-  std::cout << "multi_thread_executor time : " << dt.count() << "seconds"
-            << std::endl;
-
-  t1 = std::chrono::system_clock::now();
-  FindFeatures(400, 20, 0, 0.9f);
-  FindFeatures(200, 20, 1, 0.9f);
-  FindFeatures(100, 20, 2, 0.9f);
-  FindFeatures(50, 20, 2, 0.9f);
-
-  FindFeatures(400, 20, 0, 0.9f);
-  FindFeatures(200, 20, 1, 0.9f);
-  FindFeatures(100, 20, 2, 0.9f);
-  FindFeatures(50, 20, 2, 0.9f);
-  dt = std::chrono::system_clock::now() - t1;
-  std::cout << "naive sequential execution time : " << dt.count() << "seconds"
-            << std::endl;
-
-  std::cerr << "std::thread::hardware_concurrency(): "
-            << std::thread::hardware_concurrency() << std::endl;
+  const auto imu_factor_unbiased = imu_preint_biased.GetImuFactor();
+  std::cerr << "Unbiased:\n";
+  std::cerr << "tij:\n" << imu_factor_unbiased.tij << "\n";
+  std::cerr << "R:\n" << imu_factor_unbiased.delRij << "\n";
+  std::cerr << "p:" << imu_factor_unbiased.delpij.transpose() << "\n";
+  std::cerr << "v:" << imu_factor_unbiased.delvij.transpose() << "\n";
+  std::cerr << std::endl;
 
   return 0;
 }
