@@ -15,6 +15,7 @@
 #define GRAVITY_ACCELERATION 9.81
 
 namespace imu_preintegrator {
+
 struct Parameters {
   struct {
     struct {
@@ -62,34 +63,34 @@ struct Residuals {
   Vec3 v{Vec3::Zero()};
   struct Jacobians {
     struct {
-      Mat33 dpi{Mat33::Identity()};
-      Mat33 dvi{Mat33::Identity()};
-      Mat33 dthi{Mat33::Identity()};
-      Mat33 dpj{Mat33::Identity()};
-      Mat33 dvj{Mat33::Identity()};
-      Mat33 dthj{Mat33::Identity()};
-      Mat33 ddba{Mat33::Identity()};
-      Mat33 ddbg{Mat33::Identity()};
+      Mat33 dpi{Mat33::Zero()};
+      Mat33 dvi{Mat33::Zero()};
+      Mat33 dthi{Mat33::Zero()};
+      Mat33 dpj{Mat33::Zero()};
+      Mat33 dvj{Mat33::Zero()};
+      Mat33 dthj{Mat33::Zero()};
+      Mat33 ddba{Mat33::Zero()};
+      Mat33 ddbg{Mat33::Zero()};
     } LogR;
     struct {
-      Mat33 dpi{Mat33::Identity()};
-      Mat33 dvi{Mat33::Identity()};
-      Mat33 dthi{Mat33::Identity()};
-      Mat33 dpj{Mat33::Identity()};
-      Mat33 dvj{Mat33::Identity()};
-      Mat33 dthj{Mat33::Identity()};
-      Mat33 ddba{Mat33::Identity()};
-      Mat33 ddbg{Mat33::Identity()};
+      Mat33 dpi{Mat33::Zero()};
+      Mat33 dvi{Mat33::Zero()};
+      Mat33 dthi{Mat33::Zero()};
+      Mat33 dpj{Mat33::Zero()};
+      Mat33 dvj{Mat33::Zero()};
+      Mat33 dthj{Mat33::Zero()};
+      Mat33 ddba{Mat33::Zero()};
+      Mat33 ddbg{Mat33::Zero()};
     } p;
     struct {
-      Mat33 dpi{Mat33::Identity()};
-      Mat33 dvi{Mat33::Identity()};
-      Mat33 dthi{Mat33::Identity()};
-      Mat33 dpj{Mat33::Identity()};
-      Mat33 dvj{Mat33::Identity()};
-      Mat33 dthj{Mat33::Identity()};
-      Mat33 ddba{Mat33::Identity()};
-      Mat33 ddbg{Mat33::Identity()};
+      Mat33 dpi{Mat33::Zero()};
+      Mat33 dvi{Mat33::Zero()};
+      Mat33 dthi{Mat33::Zero()};
+      Mat33 dpj{Mat33::Zero()};
+      Mat33 dvj{Mat33::Zero()};
+      Mat33 dthj{Mat33::Zero()};
+      Mat33 ddba{Mat33::Zero()};
+      Mat33 ddbg{Mat33::Zero()};
     } v;
   } jacobians;
 };
@@ -114,31 +115,54 @@ struct ImuState {  // == NavState
 
 class ImuPreintegrator {
  public:
-  static Mat33 ConvertToRotationMatrix(const Vec3& rotation_vector);
-  static Mat33 ConvertToSkewSymmetricMatrix(const Vec3& rotation_vector);
-  static Mat33 ComputeRightJacobianOfSO3(const Vec3& rotation_vector);
-  static Mat33 ComputeInverseRightJacobianOfSO3(const Vec3& rotation_vector);
-
- public:
   explicit ImuPreintegrator(const Parameters& parameters,
                             const ImuBias& initial_bias);
   void Propagate(const ImuData& imu_data);
   // void biasCorrectedDelta(const Bias& bias_i, Mat96* H);
   void CorrectImuFactorByUpdatedBias(const ImuBias& updated_bias);
+  Residuals ComputeResiduals(const Mat33& Ri, const Vec3& pi, const Vec3& vi,
+                             const double ti, const Mat33& Rj, const Vec3& pj,
+                             const Vec3& vj, const double tj, const Vec3& dpi,
+                             const Vec3& dvi, const Vec3& dthi, const Vec3& dpj,
+                             const Vec3& dvj, const Vec3& dthj, const Vec3& dba,
+                             const Vec3& dbg);
 
   void ResetImuFactor();
+  void InitializePoseAndVelocity(const double time, const Vec3& position,
+                                 const Mat33& rotation_matrix,
+                                 const Vec3& linear_velocity);
+
+  void RepropagateImuState();
 
  public:
   const ImuBias& GetImuBias() const;
   const ImuFactor& GetImuFactor() const;
+  const ImuState& GetImuState() const;
+
+ public:
+  static Mat33 ConvertToRotationMatrix(const Vec3& rotation_vector);
+  static Vec3 ConvertToRotationVector(const Mat33& rotation_matrix);
+  static Mat33 ConvertToSkewSymmetricMatrix(const Vec3& rotation_vector);
+  static Vec3 DeskewSymmetricMatrix(const Mat33& skew_mat);
+  static Mat33 ComputeRightJacobianOfSO3(const Vec3& rotation_vector);
+  static Mat33 ComputeInverseRightJacobianOfSO3(const Vec3& rotation_vector);
+
+ private:
+  ImuState IntegrateImuState(const ImuData& imu_data);
 
  private:
   const Parameters parameters_;
+
+  bool is_pose_initialize_{false};
+
+  ImuState prev_imu_state_;
 
   std::deque<ImuData> imu_data_queue_;
   ImuState imu_state_;
   ImuBias imu_bias_;
   ImuFactor imu_factor_;
+
+  const Vec3 g_vec_{0.0, 0.0, -9.81};
 };
 
 }  // namespace imu_preintegrator
