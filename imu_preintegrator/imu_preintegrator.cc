@@ -110,7 +110,7 @@ void ImuPreintegrator::ResetImuFactor() {
   imu_factor_.t_end = 0.0;
 }
 
-void ImuPreintegrator::InitializePoseAndVelocity(const double time,
+void ImuPreintegrator::SetInitialPoseAndVelocity(const double time,
                                                  const Vec3& position,
                                                  const Mat33& rotation_matrix,
                                                  const Vec3& linear_velocity) {
