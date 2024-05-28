@@ -7,7 +7,7 @@
 
 #include "Eigen/Dense"
 
-#define GRAVITY_ACCELERATION 9.81
+#define GRAVITATIONAL_ACCELERATION 9.81
 
 namespace imu_preintegrator {
 
@@ -130,6 +130,12 @@ class ImuPreintegrator {
   /// @param updated_bias Updated bias
   void CorrectImuPreintegrationByUpdatedBias(const ImuBias& updated_bias);
 
+  /// @brief Repropagate imu state. This function might be called after bias
+  /// correction. The queued imu data is used to re-propagate imu state from the
+  /// reference imu state for integration which is internally reserved in the
+  /// class.
+  void RepropagateImuState();
+
   /// @brief Compute residuals and their Jacobians for imu preintegration
   /// measurements. All input rotations, positions, and velocities are
   /// represented in the world frame.
@@ -149,19 +155,16 @@ class ImuPreintegrator {
       const Mat33& Rj, const Vec3& pj, const Vec3& vj, const double tj,
       const Vec3& dba, const Vec3& dbg);
 
-  /// @brief Repropagate imu state. This function might be called after bias
-  /// correction. The queued imu data is used to re-propagate imu state from the
-  /// reference imu state for integration which is internally reserved in the
-  /// class.
-  void RepropagateImuState();
-
   /// @brief Reset imu preintegration. This function resets the imu
   /// preintegration measurements and their Jacobians. Imu state, linear
   /// velocity and imu bias are not affected by this function.
   void ResetImuPreintegration();
 
-  void SetInitialPoseAndVelocity(const double time, const Mat33& R,
-                                 const Vec3& p, const Vec3& v);
+  /// @brief Set initial pose and velocity
+  /// @param R Initial rotation matrix w.r.t. world frame
+  /// @param p Initial position w.r.t. world frame
+  /// @param v Initial linear velocity w.r.t. world frame
+  void SetInitialPoseAndVelocity(const Mat33& R, const Vec3& p, const Vec3& v);
 
   /// @brief Get current imu bias
   /// @return Current imu bias
@@ -176,10 +179,10 @@ class ImuPreintegrator {
   const ImuPreintegration& GetImuPreintegration() const;
 
  public:
-  static Mat33 ConvertToRotationMatrix(const Vec3& rotation_vector);
-  static Vec3 ConvertToRotationVector(const Mat33& rotation_matrix);
-  static Mat33 ConvertToSkewSymmetricMatrix(const Vec3& rotation_vector);
-  static Vec3 DeskewSymmetricMatrix(const Mat33& skew_mat);
+  static Mat33 ExpSO3(const Vec3& rotation_vector);
+  static Vec3 LogSO3(const Mat33& rotation_matrix);
+  static Mat33 MakeSkewSymmetricMatrix(const Vec3& rotation_vector);
+  static Vec3 GetVectorFromSkewSymmetricMatrix(const Mat33& skew_mat);
   static Mat33 ComputeRightJacobianOfSO3(const Vec3& rotation_vector);
   static Mat33 ComputeInverseRightJacobianOfSO3(const Vec3& rotation_vector);
 

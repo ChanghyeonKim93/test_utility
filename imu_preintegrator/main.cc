@@ -192,8 +192,8 @@ int main() {
 
   imu_preintegrator::ImuPreintegrator imu_preint_true(parameters,
                                                       {{0, 0, 0}, {0, 0, 0}});
-  imu_preint_true.SetInitialPoseAndVelocity(0.0, Eigen::Vector3d::Zero(),
-                                            Eigen::Matrix3d::Identity(),
+  imu_preint_true.SetInitialPoseAndVelocity(Eigen::Matrix3d::Identity(),
+                                            Eigen::Vector3d::Zero(),
                                             Eigen::Vector3d::Zero());
   for (const auto& d : imu_queue_raw) imu_preint_true.Integrate(d);
   const auto imu_factor_true = imu_preint_true.GetImuPreintegration();
@@ -206,8 +206,8 @@ int main() {
 
   imu_preintegrator::ImuPreintegrator imu_preint_biased(parameters,
                                                         {{0, 0, 0}, {0, 0, 0}});
-  imu_preint_biased.SetInitialPoseAndVelocity(0.0, Eigen::Vector3d::Zero(),
-                                              Eigen::Matrix3d::Identity(),
+  imu_preint_biased.SetInitialPoseAndVelocity(Eigen::Matrix3d::Identity(),
+                                              Eigen::Vector3d::Zero(),
                                               Eigen::Vector3d::Zero());
   for (auto& meas : imu_queue_raw) {
     meas.linear_acc += initial_bias.linear_acc;
