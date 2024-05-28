@@ -6,14 +6,6 @@
 #include <vector>
 
 #include "Eigen/Dense"
-#include "ceres/ceres.h"
-#include "ceres/rotation.h"
-
-// references: (folder navigation)
-// PreintegrationBase.cpp
-// ManifoldPreintegration.cpp
-// PreintegrationParams.h
-// ImuBias.h
 
 #define GRAVITY_ACCELERATION 9.81
 
@@ -32,19 +24,22 @@ struct Parameters {
   } noise;
 };
 
+using Vec2 = Eigen::Matrix<double, 2, 1>;
 using Vec3 = Eigen::Matrix<double, 3, 1>;
 using Vec6 = Eigen::Matrix<double, 6, 1>;
 using Vec9 = Eigen::Matrix<double, 9, 1>;
+using Vec15 = Eigen::Matrix<double, 15, 1>;
 
 using Mat33 = Eigen::Matrix<double, 3, 3>;
 using Mat63 = Eigen::Matrix<double, 6, 3>;
 using Mat36 = Eigen::Matrix<double, 3, 6>;
 using Mat66 = Eigen::Matrix<double, 6, 6>;
 using Mat99 = Eigen::Matrix<double, 9, 9>;
+using Mat15_9 = Eigen::Matrix<double, 15, 9>;
+using Mat15_15 = Eigen::Matrix<double, 15, 15>;
 
-struct ImuFactor {
-  double t_start{0.0};
-  double t_end{0.0};
+struct ImuPreintegration {
+  double time_start{0.0};
   double tij{0.0};
 
   Mat33 delRij{Mat33::Identity()};
@@ -60,7 +55,7 @@ struct ImuFactor {
   Mat99 error_covariance{Mat99::Zero()};
 };
 
-struct Residuals {
+struct ImuPreintegrationResidual {
   Vec3 LogR{Vec3::Zero()};
   Vec3 p{Vec3::Zero()};
   Vec3 v{Vec3::Zero()};
@@ -109,7 +104,7 @@ struct ImuBias {
   Vec3 angular_vel{0.0, 0.0, 0.0};
 };
 
-struct ImuState {  // == NavState
+struct ImuState {
   double time{0.0};
   Mat33 R{Mat33::Identity()};
   Vec3 p{Vec3::Zero()};
@@ -118,27 +113,67 @@ struct ImuState {  // == NavState
 
 class ImuPreintegrator {
  public:
+  /// @brief Constructor
+  /// @param parameters Default parameters
+  /// @param initial_imu_bias Initial imu bias
   explicit ImuPreintegrator(const Parameters& parameters,
-                            const ImuBias& initial_bias);
-  void Propagate(const ImuData& imu_data);
-  // void biasCorrectedDelta(const Bias& bias_i, Mat96* H);
-  void CorrectImuFactorByUpdatedBias(const ImuBias& updated_bias);
-  Residuals ComputeResiduals(const Mat33& Ri, const Vec3& pi, const Vec3& vi,
-                             const double ti, const Mat33& Rj, const Vec3& pj,
-                             const Vec3& vj, const double tj, const Vec3& dba,
-                             const Vec3& dbg);
+                            const ImuBias& initial_imu_bias);
 
-  void ResetImuFactor();
-  void SetInitialPoseAndVelocity(const double time, const Vec3& position,
-                                 const Mat33& rotation_matrix,
-                                 const Vec3& linear_velocity);
+  /// @brief Integrate imu preintegration and imu state. Their related Jacobians
+  /// are also updated sequentially.
+  /// @param imu_data Current imu data
+  void Integrate(const ImuData& imu_data);
 
+  /// @brief Correct imu preintegration measurements using updated bias by
+  /// first-order update scheme. Private imu bias value is changed to the input
+  /// updated bias.
+  /// @param updated_bias Updated bias
+  void CorrectImuPreintegrationByUpdatedBias(const ImuBias& updated_bias);
+
+  /// @brief Compute residuals and their Jacobians for imu preintegration
+  /// measurements. All input rotations, positions, and velocities are
+  /// represented in the world frame.
+  /// @param Ri i-th IMU rotation matrix
+  /// @param pi i-th IMU position vector
+  /// @param vi i-th IMU linear velocity
+  /// @param ti i-th time
+  /// @param Rj j-th IMU rotation matrix
+  /// @param pj j-th IMU position vector
+  /// @param vj j-th IMU linear velocity
+  /// @param tj j-th time
+  /// @param dba small update on linear acc bias
+  /// @param dbg small update on angular vel bias
+  /// @return ImuPreintegrationResidual struct
+  ImuPreintegrationResidual ComputeImuPreintegrationResidual(
+      const Mat33& Ri, const Vec3& pi, const Vec3& vi, const double ti,
+      const Mat33& Rj, const Vec3& pj, const Vec3& vj, const double tj,
+      const Vec3& dba, const Vec3& dbg);
+
+  /// @brief Repropagate imu state. This function might be called after bias
+  /// correction. The queued imu data is used to re-propagate imu state from the
+  /// reference imu state for integration which is internally reserved in the
+  /// class.
   void RepropagateImuState();
 
- public:
+  /// @brief Reset imu preintegration. This function resets the imu
+  /// preintegration measurements and their Jacobians. Imu state, linear
+  /// velocity and imu bias are not affected by this function.
+  void ResetImuPreintegration();
+
+  void SetInitialPoseAndVelocity(const double time, const Mat33& R,
+                                 const Vec3& p, const Vec3& v);
+
+  /// @brief Get current imu bias
+  /// @return Current imu bias
   const ImuBias& GetImuBias() const;
-  const ImuFactor& GetImuFactor() const;
+
+  /// @brief Get current imu state
+  /// @return Current imu state
   const ImuState& GetImuState() const;
+
+  /// @brief Get current imu preintegration struct
+  /// @return Current imu preintegration struct
+  const ImuPreintegration& GetImuPreintegration() const;
 
  public:
   static Mat33 ConvertToRotationMatrix(const Vec3& rotation_vector);
@@ -149,82 +184,24 @@ class ImuPreintegrator {
   static Mat33 ComputeInverseRightJacobianOfSO3(const Vec3& rotation_vector);
 
  private:
-  ImuState IntegrateImuState(const ImuData& imu_data);
+  ImuState IntegrateImuState(const ImuState& imu_state,
+                             const ImuData& imu_data);
 
  private:
   const Parameters parameters_;
 
   bool is_pose_initialize_{false};
 
-  ImuState prev_imu_state_;
-
+  ImuState reference_imu_state_for_integration_;
   std::deque<ImuData> imu_data_queue_;
+
   ImuState imu_state_;
   ImuBias imu_bias_;
-  ImuFactor imu_factor_;
+  ImuPreintegration imu_factor_;
 
-  const Vec3 g_vec_{0.0, 0.0, -9.81};
-};
+  Mat66 imu_noise_covariance_;
 
-class ImuPreintegrationCostFunctor {
- public:
-  ImuPreintegrationCostFunctor(
-      const std::shared_ptr<ImuPreintegrator>& imu_preintegrator)
-      : imu_preintegrator_(imu_preintegrator) {}
-
-  template <typename T>
-  bool operator()(const T* const p0_ptr, const T* const rvec0_ptr,
-                  const T* const p1_ptr, const T* const rvec1_ptr,
-                  const T* const dba_ptr, const T* const dbg_ptr,
-                  T* residual_ptr) const {
-    Eigen::Map<const Eigen::Matrix<T, 3, 1>> p0(p0_ptr);
-    Eigen::Map<const Eigen::Matrix<T, 3, 1>> p1(p1_ptr);
-    Eigen::Map<const Eigen::Matrix<T, 3, 1>> dba(dba_ptr);
-    Eigen::Map<const Eigen::Matrix<T, 3, 1>> dbg(dbg_ptr);
-
-    T q0_tmp[4];
-    T q1_tmp[4];
-    ceres::AngleAxisToQuaternion(rvec0_ptr, q0_tmp);
-    ceres::AngleAxisToQuaternion(rvec1_ptr, q1_tmp);
-    // ceres::AngleAxisToRotationMatrix(rvec0_ptr);
-    // reorder w,x,y,z -> x,y,z,w
-    T q0w = q0_tmp[0];
-    q0_tmp[0] = q0_tmp[1];
-    q0_tmp[1] = q0_tmp[2];
-    q0_tmp[2] = q0_tmp[3];
-    q0_tmp[3] = q0w;
-    T q1w = q1_tmp[0];
-    q1_tmp[0] = q1_tmp[1];
-    q1_tmp[1] = q1_tmp[2];
-    q1_tmp[2] = q1_tmp[3];
-    q1_tmp[3] = q1w;
-    Eigen::Map<const Eigen::Quaternion<T>> q0(q0_tmp);
-    Eigen::Map<const Eigen::Quaternion<T>> q1(q1_tmp);
-
-    // ceres::AngleAxisToRotationMatrix(rvec0_ptr, R0);
-    // ceres::AngleAxisToRotationMatrix(rvec1_ptr, R1);
-
-    const auto imu_factor = imu_preintegrator_->GetImuFactor();
-    const auto delpij = imu_factor.delpij.template cast<T>();
-    const auto delvij = imu_factor.delvij.template cast<T>();
-    const auto delRij = imu_factor.delRij.template cast<T>();
-    const auto delpij_dba = imu_factor.jacobians.delpij_dba.template cast<T>();
-    const auto delpij_dbg = imu_factor.jacobians.delpij_dbg.template cast<T>();
-    const auto delvij_dba = imu_factor.jacobians.delvij_dba.template cast<T>();
-    const auto delvij_dbg = imu_factor.jacobians.delvij_dbg.template cast<T>();
-
-    Eigen::Map<Eigen::Matrix<T, 9, 1>> residual(residual_ptr);
-    residual.template block<3, 1>(
-        0, 0);  // LogR = Ri.transpose()* (pj-pi-am*dt-g*dt*dt)-
-                // (del_p+dp_dba*dba+dp_dbg*dbg);
-    residual.template block<3, 1>(3, 0);  // p
-    residual.template block<3, 1>(6, 0);  // v
-
-    // ceres::RotationMatrixToAngleAxis();
-  }
-
- private:
-  std::shared_ptr<ImuPreintegrator> imu_preintegrator_{nullptr};
+  const Vec3 gravity_vector_{0.0, 0.0, -GRAVITATIONAL_ACCELERATION};
 };
 
 }  // namespace imu_preintegrator

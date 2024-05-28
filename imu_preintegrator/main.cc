@@ -195,8 +195,8 @@ int main() {
   imu_preint_true.SetInitialPoseAndVelocity(0.0, Eigen::Vector3d::Zero(),
                                             Eigen::Matrix3d::Identity(),
                                             Eigen::Vector3d::Zero());
-  for (const auto& d : imu_queue_raw) imu_preint_true.Propagate(d);
-  const auto imu_factor_true = imu_preint_true.GetImuFactor();
+  for (const auto& d : imu_queue_raw) imu_preint_true.Integrate(d);
+  const auto imu_factor_true = imu_preint_true.GetImuPreintegration();
   std::cerr << "Raw:\n";
   std::cerr << "tij:\n" << imu_factor_true.tij << "\n";
   std::cerr << "R:\n" << imu_factor_true.delRij << "\n";
@@ -213,9 +213,9 @@ int main() {
     meas.linear_acc += initial_bias.linear_acc;
     meas.angular_vel += initial_bias.angular_vel;
   }
-  for (const auto& meas : imu_queue_raw) imu_preint_biased.Propagate(meas);
+  for (const auto& meas : imu_queue_raw) imu_preint_biased.Integrate(meas);
 
-  const auto imu_factor_biased = imu_preint_biased.GetImuFactor();
+  const auto imu_factor_biased = imu_preint_biased.GetImuPreintegration();
   std::cerr << "Biased:\n";
   std::cerr << "tij:\n" << imu_factor_biased.tij << "\n";
   std::cerr << "R:\n" << imu_factor_biased.delRij << "\n";
@@ -230,10 +230,10 @@ int main() {
             << imu_state_unbiased.p.transpose() << "\n";
 
   // Updated
-  imu_preint_biased.CorrectImuFactorByUpdatedBias(initial_bias);
+  imu_preint_biased.CorrectImuPreintegrationByUpdatedBias(initial_bias);
   imu_preint_biased.RepropagateImuState();
 
-  const auto imu_factor_unbiased = imu_preint_biased.GetImuFactor();
+  const auto imu_factor_unbiased = imu_preint_biased.GetImuPreintegration();
   std::cerr << "Unbiased:\n";
   std::cerr << "tij:\n" << imu_factor_unbiased.tij << "\n";
   std::cerr << "R:\n" << imu_factor_unbiased.delRij << "\n";
