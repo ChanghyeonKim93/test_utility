@@ -4,38 +4,36 @@
 ParameterManager::ParameterManager() {}
 
 bridge::ParameterEntity ParameterManager::ConvertTo(
-    const ParameterEntity& parameter) {
-  bridge::ParameterEntity bridge_parameter;
-  bridge_parameter.key = parameter.key;
-  bridge_parameter.type = bridge::ParameterEntity::Type::kUnknown;
-  if (!parameter.value.has_value()) return bridge_parameter;
+    const ParameterEntity& param) {
+  bridge::ParameterEntity bridge_param;
+  bridge_param.key = param.key;
+  bridge_param.type = bridge::ParameterEntity::Type::kUnknown;
+  if (!param.value.has_value()) return bridge_param;
 
-  switch (parameter.type) {
+  switch (param.type) {
     case ParameterEntity::Type::kBool: {
-      if (parameter.value.type() == typeid(bool))
-        bridge_parameter.bool_value = std::any_cast<bool>(parameter.value);
+      if (param.value.type() == typeid(bool))
+        bridge_param.bool_value = std::any_cast<bool>(param.value);
     } break;
     case ParameterEntity::Type::kInt: {
-      if (parameter.value.type() == typeid(int))
-        bridge_parameter.int_value = std::any_cast<int>(parameter.value);
+      if (param.value.type() == typeid(int))
+        bridge_param.int_value = std::any_cast<int>(param.value);
     } break;
     case ParameterEntity::Type::kDouble: {
-      if (parameter.value.type() == typeid(double))
-        bridge_parameter.double_value = std::any_cast<double>(parameter.value);
+      if (param.value.type() == typeid(double))
+        bridge_param.double_value = std::any_cast<double>(param.value);
     } break;
     case ParameterEntity::Type::kString: {
-      if (parameter.value.type() == typeid(std::string)) {
-        bridge_parameter.string_value =
-            std::any_cast<std::string>(parameter.value);
-      } else if (parameter.value.type() == typeid(const char*)) {
-        bridge_parameter.string_value =
-            std::string(std::any_cast<const char*>(parameter.value));
-      }
+      if (param.value.type() == typeid(std::string))
+        bridge_param.string_value = std::any_cast<std::string>(param.value);
+      else if (param.value.type() == typeid(const char*))
+        bridge_param.string_value =
+            std::string(std::any_cast<const char*>(param.value));
     } break;
     default:
       break;
   }
-  return bridge_parameter;
+  return bridge_param;
 }
 
 ParameterEntity ParameterManager::ConvertTo(
