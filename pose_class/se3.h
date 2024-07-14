@@ -49,7 +49,7 @@ class SE3 {
 
   const Eigen::Vector3d& translation() const { return translation_data_; }
 
-  // Eigen::Matrix<double, 6, 1> convertToLieAlgebra() const {
+  // Eigen::Matrix<double, 6, 1> toLieAlgebra() const {
   //   Eigen::Matrix<double, 6, 1> lie_algebra{
   //       Eigen::Matrix<double, 6, 1>::Zero()};
   //   return lie_algebra;

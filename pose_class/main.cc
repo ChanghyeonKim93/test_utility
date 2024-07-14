@@ -14,11 +14,17 @@ int main() {
             << std::endl;
 
   SE3 inv_pose = pose.inverse();
-  std::cerr << pose.rotation().convertToRotationMatrix() << std::endl;
-  std::cerr << inv_pose.rotation().convertToRotationMatrix() << std::endl;
+  std::cerr << pose.rotation().toRotationMatrix() << std::endl;
+  std::cerr << inv_pose.rotation().toRotationMatrix() << std::endl;
   std::cerr << inv_pose.translation().transpose() << std::endl;
 
   SE3 iden = pose * inv_pose;
-  std::cerr << iden.rotation().convertToRotationMatrix() << std::endl;
+  std::cerr << iden.rotation().toRotationMatrix() << std::endl;
+
+  //
+  SO3 rot(Eigen::Vector3d(1.0, -0.23, 0.00124));
+  std::cerr << "Rot: " << rot.toRotationMatrix() << std::endl;
+  std::cerr << "Rot: " << rot.toQuaternion().coeffs().transpose() << std::endl;
+  std::cerr << "Rot: " << rot.toRotationVector().transpose() << std::endl;
   return 0;
 }

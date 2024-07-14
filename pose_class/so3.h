@@ -38,16 +38,15 @@ class SO3 {
   // Eigen::Matrix3d computeRightJacobian() const;
   // Eigen::Matrix3d computeLeftJacobian() const;
 
-  const Eigen::Quaterniond& convertToQuaternion() const { return data_; }
-  Eigen::Matrix3d convertToRotationMatrix() const {
-    return data_.toRotationMatrix();
-  }
-  Eigen::Vector3d convertToRotationVector() const {
+  const Eigen::Quaterniond& toQuaternion() const { return data_; }
+  Eigen::Matrix3d toRotationMatrix() const { return data_.toRotationMatrix(); }
+  Eigen::Vector3d toRotationVector() const {
     Eigen::Vector3d rotation_vector{Eigen::Vector3d::Zero()};
-    const double sin_angle = data_.vec().norm();
+    const double sin_half_angle = data_.vec().norm();
     constexpr double kSmallNumber{1e-7};
-    if (std::abs(sin_angle) < kSmallNumber) return rotation_vector;
-    rotation_vector = data_.vec() * (std::asin(sin_angle) / sin_angle);
+    if (std::abs(sin_half_angle) < kSmallNumber) return rotation_vector;
+    rotation_vector =
+        data_.vec() * (2.0 * std::asin(sin_half_angle) / sin_half_angle);
     return rotation_vector;
   }
 
