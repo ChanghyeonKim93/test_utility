@@ -1,19 +1,25 @@
 #ifndef SO3_H_
 #define SO3_H_
 
+#include <type_traits>
+
 #include "Eigen/Dense"
 
+template <typename Scalar>
 class SO3 {
+  using Mat3x3 = Eigen::Matrix<Scalar, 3, 3>;
+  using Vec3 = Eigen::Matrix<Scalar, 3, 1>;
+  using Quaternion = Eigen::Quaternion<Scalar>;
   // Constructors
  public:
-  SO3() : data_{Eigen::Quaterniond::Identity()} {}
+  SO3() : data_{Quaternion::Identity()} {}
   SO3(const SO3& input) : data_{input.data_.normalized()} {}
-  SO3(const Eigen::Vector3d& rotation_vector)
+  SO3(const Vec3& rotation_vector)
       : data_{convertToQuaternion(rotation_vector).normalized()} {}
-  SO3(const Eigen::Matrix3d& rotation_matrix)
+  SO3(const Mat3x3& rotation_matrix)
       : data_{convertToQuaternion(convertToRotationVector(rotation_matrix))
                   .normalized()} {}
-  SO3(const Eigen::Quaterniond& quaternion) : data_{quaternion.normalized()} {}
+  SO3(const Quaternion& quaternion) : data_{quaternion.normalized()} {}
 
   // Operator overloading
  public:
@@ -24,9 +30,7 @@ class SO3 {
   SO3 operator*(const SO3& rhs) {
     return SO3((data_ * rhs.data_).normalized());
   }
-  Eigen::Vector3d operator*(const Eigen::Vector3d& rhs) {
-    return data_.toRotationMatrix() * rhs;
-  }
+  Vec3 operator*(const Vec3& rhs) { return data_.toRotationMatrix() * rhs; }
 
   SO3& operator*=(const SO3& rhs) {
     data_ = (data_ * rhs.data_).normalized();
@@ -38,10 +42,10 @@ class SO3 {
   // Eigen::Matrix3d computeRightJacobian() const;
   // Eigen::Matrix3d computeLeftJacobian() const;
 
-  const Eigen::Quaterniond& toQuaternion() const { return data_; }
-  Eigen::Matrix3d toRotationMatrix() const { return data_.toRotationMatrix(); }
-  Eigen::Vector3d toRotationVector() const {
-    Eigen::Vector3d rotation_vector{Eigen::Vector3d::Zero()};
+  const Quaternion& toQuaternion() const { return data_; }
+  Mat3x3 toRotationMatrix() const { return data_.toRotationMatrix(); }
+  Vec3 toRotationVector() const {
+    Vec3 rotation_vector{Vec3::Zero()};
     const double sin_half_angle = data_.vec().norm();
     constexpr double kSmallNumber{1e-7};
     if (std::abs(sin_half_angle) < kSmallNumber) return rotation_vector;
@@ -51,9 +55,8 @@ class SO3 {
   }
 
  private:
-  Eigen::Quaterniond convertToQuaternion(
-      const Eigen::Vector3d& rotation_vector) {
-    Eigen::Quaterniond quaternion{Eigen::Quaterniond::Identity()};
+  Quaternion convertToQuaternion(const Vec3& rotation_vector) {
+    Quaternion quaternion{Quaternion::Identity()};
     const double angle = rotation_vector.norm();
     if (angle < 1e-7) {
       quaternion.w() = 1.0;
@@ -70,15 +73,14 @@ class SO3 {
     quaternion.normalize();
     return quaternion;
   }
-  Eigen::Vector3d convertToRotationVector(
-      const Eigen::Matrix3d& rotation_matrix) {
+  Vec3 convertToRotationVector(const Mat3x3& rotation_matrix) {
     // Logarithm map of SO(3)
-    Eigen::Vector3d rotation_vector{Eigen::Vector3d::Zero()};
+    Vec3 rotation_vector{Vec3::Zero()};
     const double trace =
         rotation_matrix(0, 0) + rotation_matrix(1, 1) + rotation_matrix(2, 2);
     const double cos_angle = std::clamp((trace - 1.0), -1.0, 1.0) * 0.5;
     constexpr double kSmallNumber{1e-7};
-    if (1.0 - cos_angle < kSmallNumber) return Eigen::Vector3d::Zero();
+    if (1.0 - cos_angle < kSmallNumber) return Vec3::Zero();
     const double angle = std::acos(cos_angle);
     rotation_vector(0) = rotation_matrix(2, 1) - rotation_matrix(1, 2);
     rotation_vector(1) = rotation_matrix(0, 2) - rotation_matrix(2, 0);
@@ -87,7 +89,10 @@ class SO3 {
     return rotation_vector;
   }
 
-  Eigen::Quaterniond data_;
+  Quaternion data_;
 };
+
+using SO3f = SO3<float>;
+using SO3d = SO3<double>;
 
 #endif  // SO3_H_

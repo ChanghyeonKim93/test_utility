@@ -5,14 +5,20 @@
 
 #include "so3.h"
 
+template <typename Scalar>
 class SE3 {
+  using Mat3x3 = Eigen::Matrix<Scalar, 3, 3>;
+  using Mat4x4 = Eigen::Matrix<Scalar, 4, 4>;
+  using Vec3 = Eigen::Matrix<Scalar, 3, 1>;
+  using Vec4 = Eigen::Matrix<Scalar, 4, 1>;
+  using Quaternion = Eigen::Quaternion<Scalar>;
   // Constructors
  public:
-  SE3() : rotation_data_{}, translation_data_{Eigen::Vector3d::Zero()} {}
+  SE3() : rotation_data_{}, translation_data_{Vec3::Zero()} {}
   SE3(const SE3& input)
       : rotation_data_(input.rotation_data_),
         translation_data_(input.translation_data_) {}
-  SE3(const SO3& rotation, const Eigen::Vector3d& translation)
+  SE3(const SO3<Scalar>& rotation, const Vec3& translation)
       : rotation_data_(rotation), translation_data_(translation) {}
   // SE3(const Eigen::Matrix<double, 6, 1>& lie_algebra)
   //     : rotation_data_(rotation), translation_data_(translation) {}
@@ -34,7 +40,7 @@ class SE3 {
     return *this;
   }
 
-  Eigen::Vector3d operator*(const Eigen::Vector3d& rhs) {
+  Vec3 operator*(const Vec3& rhs) {
     return (rotation_data_ * rhs + translation_data_);
   }
 
@@ -45,9 +51,9 @@ class SE3 {
     return inverse;
   }
 
-  const SO3& rotation() const { return rotation_data_; }
+  const SO3<Scalar>& rotation() const { return rotation_data_; }
 
-  const Eigen::Vector3d& translation() const { return translation_data_; }
+  const Vec3& translation() const { return translation_data_; }
 
   // Eigen::Matrix<double, 6, 1> toLieAlgebra() const {
   //   Eigen::Matrix<double, 6, 1> lie_algebra{
@@ -56,8 +62,11 @@ class SE3 {
   // };
 
  private:
-  SO3 rotation_data_;
-  Eigen::Vector3d translation_data_;
+  SO3<Scalar> rotation_data_;
+  Vec3 translation_data_;
 };
+
+using SE3f = SE3<float>;
+using SE3d = SE3<double>;
 
 #endif  // SE3_H_
