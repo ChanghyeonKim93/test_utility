@@ -1,6 +1,63 @@
+#include <any>
 #include <iostream>
+#include <string>
+#include <type_traits>
+#include <unordered_set>
 
 #include "Eigen/Dense"
+
+class ParameterBase {
+ public:
+  enum class Type { kUnknown, kBool, kInt, kDouble, kString, kFootprint };
+  struct Footprint {
+    enum class Type { kUnknown, kRectangular, kCircular, kPolygon };
+    Type type{Type::kUnknown};
+    double height{0.0};
+    double length{0.0};
+    double width{0.0};
+    double radius{0.0};
+    struct {
+      double x{0.0};
+      double y{0.0};
+    } offset;
+  };
+
+  std::string key_{""};
+  Type type_{Type::kUnknown};
+  std::any value_;
+
+  template <typename Dst>
+  Dst ConvertTo() {
+    Dst dst;
+    dst.key = key_;
+    dst.type = type_;
+    dst.value = value_;
+    return dst;
+  }
+};
+
+namespace motion_planner::forward_planner {
+
+class Parameter : public ParameterBase {};
+
+}  // namespace motion_planner::forward_planner
+
+namespace motion_planner::forward_planner::bridge {
+
+class Parameter : public ParameterBase {};
+
+}  // namespace motion_planner::forward_planner::bridge
+
+namespace behavior_planner {
+
+class Parameter : public ParameterBase {};
+
+}  // namespace behavior_planner
+namespace behavior_planner::bridge {
+
+class Parameter : public ParameterBase {};
+
+}  // namespace behavior_planner::bridge
 
 struct NormalDistribution {
   int count{0};
@@ -71,4 +128,15 @@ void MahalanobisDistanceMinimizer::ResetCorrespondenceList() {
   correspondence_list_.clear();
 }
 
-int main() { return 0; }
+int main() {
+  ParameterBase::Footprint footprint;
+
+  motion_planner::forward_planner::bridge::Parameter fp_bridge_param;
+  fp_bridge_param = {"a", ParameterBase::Type::kBool, 1.2};
+
+  motion_planner::forward_planner::Parameter fp_param;
+  auto a = motion_planner::forward_planner::Parameter{
+      "max_linear_velocity", ParameterBase::Type::kDouble, 1.65};
+
+  return 0;
+}
