@@ -12,6 +12,7 @@ include_directories(${INCLUDE_DIR})
 include_directories(${EIGEN3_INCLUDE_DIR})
 
 set(SRC ${SRC}
+  time_checker.cc
 )
 
 add_executable(${CMAKE_PROJECT_NAME}_main

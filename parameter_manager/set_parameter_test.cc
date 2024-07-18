@@ -1,57 +1,61 @@
 #include <iostream>
+#include <stdexcept>
 
 #include "parameter_base.h"
 
-namespace motion_planner {
-namespace forward_planner {
-
-struct Parameter : public ParameterBase {
- public:
- private:
-};
-
-}  // namespace forward_planner
-}  // namespace motion_planner
-
-namespace motion_planner {
-namespace forward_planner {
+namespace motion_planner::forward_planner {
+class Parameter : public ParameterBase {};
 namespace bridge {
 
-struct Parameter : public ParameterBase {
+class Parameter : public ParameterBase {
  public:
- private:
+  Parameter() : ParameterBase() {}
+  Parameter(const std::string& key, const std::any& value)
+      : ParameterBase(key, value) {}
 };
 
 }  // namespace bridge
-}  // namespace forward_planner
-}  // namespace motion_planner
+}  // namespace motion_planner::forward_planner
 
 namespace behavior_planner {
+class Parameter : public ParameterBase {
+ public:
+  Parameter() : ParameterBase() {}
+  Parameter(const std::string& key, const std::any& value)
+      : ParameterBase(key, value) {}
+};
 namespace bridge {
-
-struct Parameter : public ParameterBase {
+class Parameter : public ParameterBase {
  public:
- private:
+  Parameter() : ParameterBase() {}
+  Parameter(const std::string& key, const std::any& value)
+      : ParameterBase(key, value) {}
 };
-
 }  // namespace bridge
-}  // namespace behavior_planner
-
-namespace behavior_planner {
-
-struct Parameter : public ParameterBase {
- public:
- private:
-};
-
 }  // namespace behavior_planner
 
 int main() {
   // bp bridge -> bp -> mp bridge -> mp
-  motion_planner::forward_planner::bridge::Parameter bridge_param;
-  motion_planner::forward_planner::Parameter param;
+  try {
+    using namespace motion_planner;
+    forward_planner::bridge::Parameter fp_bridge_param = {"max_linear_velocity",
+                                                          1};
 
-  param = bridge_param.ConvertTo<motion_planner::forward_planner::Parameter>();
+    behavior_planner::bridge::Parameter bp_bridge_param =
+        fp_bridge_param.ConvertTo<behavior_planner::bridge::Parameter>();
+    behavior_planner::Parameter bp_param;
+    bp_bridge_param =
+        fp_bridge_param.ConvertTo<behavior_planner::bridge::Parameter>();
+    bp_param = bp_bridge_param.ConvertTo<behavior_planner::Parameter>();
 
+    std::cerr << bp_param.GetKey() << std::endl;
+    std::cerr << static_cast<int>(bp_param.GetType()) << std::endl;
+    std::cerr << bp_param.GetValue<int>() << std::endl;
+
+    std::vector<forward_planner::bridge::Parameter> fp_bridge_param_list;
+    fp_bridge_param_list.push_back({"a", "e"});
+  } catch (std::exception& e) {
+    std::cerr << "ERROR: " << e.what() << std::endl;
+  }
   return 0;
 }

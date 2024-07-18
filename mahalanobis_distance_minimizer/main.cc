@@ -6,6 +6,8 @@
 
 #include "Eigen/Dense"
 
+#include "time_checker.h"
+
 class ParameterBase {
  public:
   enum class Type { kUnknown, kBool, kInt, kDouble, kString, kFootprint };
