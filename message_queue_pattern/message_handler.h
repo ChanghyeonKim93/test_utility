@@ -14,6 +14,11 @@
 #include "multi_thread_executor.h"
 
 /* Note: This is an example of observer pattern. */
+/* MessageHandler do not consider a situation that callback function cannot
+ * receive the message. Possible problem of this implementation: If the some
+ mutex in callback function is blocked, the callback manager threads could be
+ also stucked and finally all threads in callback manager are stucked. */
+
 template <class DataType>
 class MessageHandler {
  public:
@@ -22,10 +27,9 @@ class MessageHandler {
  public:
   explicit MessageHandler(const int max_queue_size)
       : max_queue_size_(max_queue_size),
-        multi_thread_executor_(std::make_unique<MultiThreadExecutor>(2)) {
-    thread_for_callback_manager_ =
-        std::thread([this]() { RunCallbackManagerWhileLoop(); });
-  }
+        multi_thread_executor_(std::make_unique<MultiThreadExecutor>(2)),
+        thread_for_callback_manager_(
+            [this]() { RunCallbackManagerWhileLoop(); }) {}
 
   ~MessageHandler() {
     status_ = Status::kKill;
@@ -36,7 +40,7 @@ class MessageHandler {
   }
 
   void Publish(const DataType& message) {
-    message_queue_.push_back(message);
+    message_queue_.emplace_back(message);
     while (static_cast<int>(message_queue_.size()) > max_queue_size_)
       message_queue_.pop_front();
     cv_.notify_one();
@@ -63,8 +67,7 @@ class MessageHandler {
       std::optional<DataType> message = GetAndDequeueMessage();
       if (!message.has_value()) continue;  // no message
 
-      // 각 콜백함수를 실행하고 온다.
-      for (auto&& callback : callback_function_list_)
+      for (const auto& callback : callback_function_list_)
         multi_thread_executor_->Execute(callback, message.value());
     }
   }
@@ -81,14 +84,14 @@ class MessageHandler {
   Status status_{Status::kRun};
   const int max_queue_size_;
 
+  std::unique_ptr<MultiThreadExecutor> multi_thread_executor_;
+
   std::mutex mutex_;
   std::condition_variable cv_;
   std::thread thread_for_callback_manager_;
 
   std::deque<DataType> message_queue_;
   std::list<std::function<void(DataType)>> callback_function_list_;
-
-  std::unique_ptr<MultiThreadExecutor> multi_thread_executor_;
 };
 
 #endif  // MESSAGE_QUEUE_PATTERN_MESSAGE_HANDLER_H_
