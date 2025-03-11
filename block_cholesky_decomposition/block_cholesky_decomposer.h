@@ -34,7 +34,7 @@ class BlockCholeskyDecomposer {
   /// @brief Reset the private storage
   void Reset() {
     for (int row = 0; row < NumBlocks; ++row) {
-      for (int col = 0; col < row; ++col) {
+      for (int col = 0; col <= row; ++col) {
         L_[row][col].setZero();
       }
     }
@@ -86,6 +86,29 @@ class BlockCholeskyDecomposer {
       D_[i] = A[i][i] - sum_Lik_Dk_Likt;
       Dinv_[i] = D_[i].inverse();
     }
+    // for (int j = 0; j < M; ++j) {
+    //   BlockMatrix sum_Ljk_Dk_Ljkt;
+    //   sum_Ljk_Dk_Ljkt.setZero();
+    //   for (int k = 0; k < j; ++k) {
+    //     const auto& Ljk = L_[j][k];
+    //     const auto& Dk = D_[k];
+    //     sum_Ljk_Dk_Ljkt.noalias() += Ljk * Dk * Ljk.transpose();
+    //   }
+    //   D_[j] = A[j][j] - sum_Ljk_Dk_Ljkt;
+    //   Dinv_[j] = D_[j].inverse();
+
+    //   for (int i = 0; i < j; ++i) {
+    //     BlockMatrix sum_Lik_Dk_Ljkt;
+    //     sum_Lik_Dk_Ljkt.setZero();
+    //     for (int k = 0; k < j; ++k) {
+    //       const auto& Lik = L_[i][k];
+    //       const auto& Ljk = L_[j][k];
+    //       const auto& Dk = D_[k];
+    //       sum_Lik_Dk_Ljkt.noalias() += Lik * Dk * Ljk.transpose();
+    //     }
+    //     L_[i][j] = (A[i][j] - sum_Lik_Dk_Ljkt) * Dinv_[j];
+    //   }
+    // }
 
     return *this;
   }
@@ -151,8 +174,10 @@ class BlockCholeskyDecomposer {
   void InitializeMatrices() {
     L_.resize(NumBlocks);
     for (int row = 0; row < NumBlocks; ++row) {
-      L_[row].resize(row + 1);
-      for (int col = 0; col <= row; ++col)  //
+      L_[row].resize(NumBlocks);
+      for (int col = 0; col < NumBlocks; ++col)
+        // L_[row].resize(row + 1);
+        // for (int col = 0; col <= row; ++col)  //
         L_[row][col].setZero();
     }
 
