@@ -1,77 +1,99 @@
+#include <chrono>
 #include <iostream>
+#include <thread>
 #include <vector>
 
 #include "eigen3/Eigen/Cholesky"
 #include "eigen3/Eigen/Dense"
+#include "eigen3/Eigen/SparseCholesky"
 
 #include "block_cholesky_decomposer.h"
 #include "timer.h"
 
+using namespace std::chrono_literals;
+
 int main() {
-  const int Dim{2};
-  const int M{200};
+  const int kDimRes{2};
+  const int kNumRes{560};
+  const int kDimParam(6);
+  const int kNumParam{200};
 
-  using BlockMatrix = Eigen::Matrix<double, Dim, Dim>;
-  using BlockVector = Eigen::Matrix<double, Dim, 1>;
+  using BlockMatrix = Eigen::Matrix<double, kDimParam, kDimParam>;
+  using BlockVector = Eigen::Matrix<double, kDimParam, 1>;
 
-  std::vector<std::vector<BlockMatrix>> A(M, std::vector<BlockMatrix>(M));
-  std::vector<BlockVector> b(M);
-  for (int row = 0; row < M; ++row) {
-    b[row].setRandom();
-    for (int col = 0; col <= row; ++col) {
-      BlockMatrix rand_mat;
-      rand_mat.setRandom();
-      A[row][col] = (rand_mat.transpose() * rand_mat);
-      A[col][row].noalias() = A[row][col].transpose();
+  Eigen::MatrixXd jacobian(kDimRes * kNumRes, kDimParam * kNumParam);
+  for (int n = 0; n < kNumRes; ++n) {
+    for (int m = 0; m < kNumParam; ++m) {
+      jacobian.block<kDimRes, kDimParam>(kDimRes * n, kDimParam * m) =
+          Eigen::Matrix<double, kDimRes, kDimParam>::Random();
     }
   }
+  Eigen::MatrixXd H_true(kDimParam * kNumParam, kDimParam * kNumParam);
+  H_true = jacobian.transpose() * jacobian;
+  std::cerr << "H_true.determinant(): " << (H_true.determinant()) << std::endl;
+  std::cerr << "det(H) > 0: " << (H_true.determinant() > 0.0) << std::endl;
 
-  Eigen::MatrixXd A_large_true(Dim * M, Dim * M);
-  Eigen::MatrixXd b_large_true(Dim * M, 1);
-  for (int row = 0; row < M; ++row) {
-    b_large_true.block<Dim, 1>(Dim * row, 0) = b[row];
-    for (int col = 0; col < M; ++col) {
-      A_large_true.block<Dim, Dim>(Dim * row, Dim * col) = A[row][col];
-    }
-  }
-  const auto x_large_true = A_large_true.inverse() * b_large_true;
+  Eigen::MatrixXd g_true(kDimParam * kNumParam, 1);
+  for (int i = 0; i < kNumParam; ++i)
+    g_true.block<kDimParam, 1>(kDimParam * i, 0).setRandom();
+
+  std::this_thread::sleep_for(1000ms);
+
+  timer::tic();
+  const Eigen::MatrixXd x_large_true1 = H_true.inverse() * g_true;
+  timer::toc(1);
+  // std::cerr << " diff1: " << H_true * x_large_true1 - g_true << std::endl;
+  std::cerr << "diff 1 done\n";
+  std::this_thread::sleep_for(1000ms);
 
   timer::tic();
   Eigen::LDLT<Eigen::MatrixXd> eigen_ldlt;
-  eigen_ldlt.compute(A_large_true);
+  auto x_ldlt = eigen_ldlt.compute(H_true).solve(g_true);
   timer::toc(1);
+  // std::cerr << " diff2: " << H_true * x_ldlt - g_true << std::endl;
+  std::cerr << "diff 2 done\n";
+  std::this_thread::sleep_for(1000ms);
 
   //
+  std::vector<std::vector<BlockMatrix>> H(kNumParam);
+  std::vector<BlockVector> g(kNumParam, BlockVector::Zero());
+  for (int i = 0; i < kNumParam; ++i) {
+    g[i] = g_true.block<kDimParam, 1>(kDimParam * i, 0);
+    H.at(i) = std::vector<BlockMatrix>(kNumParam, BlockMatrix::Zero());
+    for (int j = 0; j < kNumParam; ++j) {
+      H.at(i).at(j) =
+          H_true.block<kDimParam, kDimParam>(kDimParam * i, kDimParam * j);
+    }
+  }
+
+  std::cerr << "Start solve Block Cholesky\n";
   timer::tic();
-  BlockCholeskyDecomposer<double, Dim, M> block_ldlt;
-  block_ldlt.DecomposeMatrix(A);
+  BlockCholeskyDecomposer<double, kDimParam, kNumParam> block_ldlt;
+  block_ldlt.DecomposeMatrix(H);
   timer::toc(1);
 
-  const auto x = block_ldlt.SolveLinearEquation(b);
+  const auto x = block_ldlt.SolveLinearEquation(g);
 
   const auto L_est = block_ldlt.GetMatrixL();
   const auto D_est = block_ldlt.GetMatrixD();
 
-  Eigen::MatrixXd L_mat_est(Dim * M, Dim * M);
-  Eigen::MatrixXd D_mat_est(Dim * M, Dim * M);
+  Eigen::MatrixXd L_mat_est(kDimParam * kNumParam, kDimParam * kNumParam);
+  Eigen::MatrixXd D_mat_est(kDimParam * kNumParam, kDimParam * kNumParam);
   L_mat_est.setZero();
   D_mat_est.setZero();
-  for (int row = 0; row < M; ++row) {
-    D_mat_est.block<Dim, Dim>(Dim * row, Dim * row) = D_est[row];
+  for (int row = 0; row < kNumParam; ++row) {
+    D_mat_est.block<kDimParam, kDimParam>(kDimParam * row, kDimParam * row) =
+        D_est[row];
     for (int col = 0; col <= row; ++col) {
-      L_mat_est.block<Dim, Dim>(Dim * row, Dim * col) = L_est[row][col];
+      L_mat_est.block<kDimParam, kDimParam>(kDimParam * row, kDimParam * col) =
+          L_est[row][col];
     }
   }
-  std::cerr << D_mat_est << std::endl;
 
   auto A_mat_est = L_mat_est * D_mat_est * L_mat_est.transpose();
-  std::cerr << "A_large diff:\n" << A_large_true - A_mat_est << std::endl;
-  for (int i = 0; i < M; ++i) {
-    // std::cerr << (x[i] - x_large_true.block<Dim, 1>(Dim * i, 0)) <<
-    // std::endl;
-    std::cerr << (x[i] - x_large_true.block<Dim, 1>(Dim * i, 0)).norm()
+  for (int i = 0; i < kNumParam; ++i) {
+    std::cerr << (x[i] - x_ldlt.block<kDimParam, 1>(kDimParam * i, 0)).norm()
               << std::endl;
-    // std::cerr << x_large_true.block<Dim, 1>(Dim * i, 0) << std::endl;
   }
 
   return 0;

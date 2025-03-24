@@ -1,19 +1,20 @@
 #include <type_traits>
 
 #include "eigen3/Eigen/Dense"
+// #include "eigen3/Eigen/StdVector"
 
 /// @brief Cholesky LDLt decomposer for symmetric indefinite block matrix
 /// @tparam Numeric Numeric type of the matrix. (only `float` and `double` are
 /// supported.)
-/// @tparam DimOfBlock Dimension of each block matrix
-/// @tparam NumBlocks The number of block matrices along each axis. Total
-/// dimension of the operand matrix is {DimOfBlock * NumBlocks} X
-/// {DimOfBlock * NumBlocks}
-template <typename Numeric, int DimOfBlock, int NumBlocks>
+/// @tparam kDimBlock Dimension of each block matrix
+/// @tparam kNumBlock The number of block matrices along each axis. Total
+/// dimension of the operand matrix is {kDimBlock * kNumBlock} X
+/// {kDimBlock * kNumBlock}
+template <typename Numeric, int kDimBlock, int kNumBlock>
 class BlockCholeskyDecomposer {
  private:
-  using BlockMatrix = Eigen::Matrix<double, DimOfBlock, DimOfBlock>;
-  using BlockVector = Eigen::Matrix<double, DimOfBlock, 1>;
+  using BlockMatrix = Eigen::Matrix<double, kDimBlock, kDimBlock>;
+  using BlockVector = Eigen::Matrix<double, kDimBlock, 1>;
 
  public:
   /// @brief Constructor. It reserves private storages.
@@ -24,7 +25,6 @@ class BlockCholeskyDecomposer {
           "Input type is not supported! Only `double` and `float` are "
           "supported.");
     }
-
     InitializeMatrices();
   }
 
@@ -33,13 +33,13 @@ class BlockCholeskyDecomposer {
 
   /// @brief Reset the private storage
   void Reset() {
-    for (int row = 0; row < NumBlocks; ++row) {
+    for (int row = 0; row < kNumBlock; ++row) {
       for (int col = 0; col <= row; ++col) {
         L_[row][col].setZero();
       }
     }
 
-    for (int row = 0; row < NumBlocks; ++row) {
+    for (int row = 0; row < kNumBlock; ++row) {
       D_[row].setZero();
       Dinv_[row].setZero();
     }
@@ -49,21 +49,21 @@ class BlockCholeskyDecomposer {
   /// @param block_full_matrix
   BlockCholeskyDecomposer& DecomposeMatrix(
       const std::vector<std::vector<BlockMatrix>>& block_full_matrix) {
-    if (block_full_matrix.size() != NumBlocks ||
-        block_full_matrix.front().size() != NumBlocks) {
+    if (block_full_matrix.size() != kNumBlock ||
+        block_full_matrix.front().size() != kNumBlock) {
       throw std::runtime_error(
-          "block_full_matrix.size() != NumBlocks "
-          "||block_full_matrix.front().size() != NumBlocks");
+          "block_full_matrix.size() != kNumBlock "
+          "||block_full_matrix.front().size() != kNumBlock");
     }
 
     Reset();
 
-    const auto M = NumBlocks;
+    const auto M = kNumBlock;
     const auto& A = block_full_matrix;
 
-    for (int i = 0; i < M; i++) L_[i][i].setIdentity();
+    for (int i = 0; i < M; ++i) L_[i][i].setIdentity();
 
-    for (int i = 0; i < M; i++) {
+    for (int i = 0; i < M; ++i) {
       for (int j = 0; j < i; ++j) {
         BlockMatrix sum_Lik_Dk_Ljkt;
         sum_Lik_Dk_Ljkt.setZero();
@@ -86,6 +86,7 @@ class BlockCholeskyDecomposer {
       D_[i] = A[i][i] - sum_Lik_Dk_Likt;
       Dinv_[i] = D_[i].inverse();
     }
+
     // for (int j = 0; j < M; ++j) {
     //   BlockMatrix sum_Ljk_Dk_Ljkt;
     //   sum_Ljk_Dk_Ljkt.setZero();
@@ -130,7 +131,7 @@ class BlockCholeskyDecomposer {
 
     // 1) Forward substitution
     // zi = Lii^{-1}*(bi - sum_{j=0}^{i-1} Lij*zj)
-    const auto M = NumBlocks;
+    const auto M = kNumBlock;
     std::vector<BlockVector> z(M);
     BlockVector sum_Lz;
     for (int i = 0; i < M; ++i) {
@@ -172,25 +173,24 @@ class BlockCholeskyDecomposer {
 
  private:
   void InitializeMatrices() {
-    L_.resize(NumBlocks);
-    for (int row = 0; row < NumBlocks; ++row) {
-      L_[row].resize(NumBlocks);
-      for (int col = 0; col < NumBlocks; ++col)
-        // L_[row].resize(row + 1);
-        // for (int col = 0; col <= row; ++col)  //
-        L_[row][col].setZero();
+    L_.resize(kNumBlock);
+    for (int row = 0; row < kNumBlock; ++row) {
+      L_.at(row).resize(row + 1);
+      for (int col = 0; col <= row; ++col) {
+        L_.at(row).at(col).setZero();
+      }
     }
 
-    D_.resize(NumBlocks);
-    Dinv_.resize(NumBlocks);
-    for (int row = 0; row < NumBlocks; ++row) {
+    D_.resize(kNumBlock);
+    Dinv_.resize(kNumBlock);
+    for (int row = 0; row < kNumBlock; ++row) {
       Dinv_[row].setZero();
       D_[row].setZero();
     }
   }
 
  private:
-  std::vector<std::vector<BlockMatrix>> L_;  // NumBlocks*(NumBlocks+1)/2
-  std::vector<BlockMatrix> D_;               // NumBlocks
-  std::vector<BlockMatrix> Dinv_;            // NumBlocks
+  std::vector<std::vector<BlockMatrix>> L_;  // kNumBlock*(kNumBlock+1)/2
+  std::vector<BlockMatrix> D_;               // kNumBlock
+  std::vector<BlockMatrix> Dinv_;            // kNumBlock
 };
