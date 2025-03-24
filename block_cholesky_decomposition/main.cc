@@ -91,10 +91,16 @@ int main() {
   }
 
   auto A_mat_est = L_mat_est * D_mat_est * L_mat_est.transpose();
+  Eigen::MatrixXd x_est(kDimParam * kNumParam, 1);
   for (int i = 0; i < kNumParam; ++i) {
+    x_est.block<kDimParam, 1>(kDimParam * i, 0) = x[i];
     std::cerr << (x[i] - x_ldlt.block<kDimParam, 1>(kDimParam * i, 0)).norm()
               << std::endl;
   }
+  std::cerr << " diff3: " << H_true * x_est - g_true << std::endl;
+
+  auto diff_H = H_true - A_mat_est;
+  std::cerr << diff_H << std::endl;
 
   return 0;
 }

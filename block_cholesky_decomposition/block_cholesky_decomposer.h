@@ -36,6 +36,7 @@ class BlockCholeskyDecomposer {
     for (int row = 0; row < kNumBlock; ++row) {
       for (int col = 0; col <= row; ++col) {
         L_[row][col].setZero();
+        Linv_[row][col].setZero();
       }
     }
 
@@ -87,30 +88,6 @@ class BlockCholeskyDecomposer {
       Dinv_[i] = D_[i].inverse();
     }
 
-    // for (int j = 0; j < M; ++j) {
-    //   BlockMatrix sum_Ljk_Dk_Ljkt;
-    //   sum_Ljk_Dk_Ljkt.setZero();
-    //   for (int k = 0; k < j; ++k) {
-    //     const auto& Ljk = L_[j][k];
-    //     const auto& Dk = D_[k];
-    //     sum_Ljk_Dk_Ljkt.noalias() += Ljk * Dk * Ljk.transpose();
-    //   }
-    //   D_[j] = A[j][j] - sum_Ljk_Dk_Ljkt;
-    //   Dinv_[j] = D_[j].inverse();
-
-    //   for (int i = 0; i < j; ++i) {
-    //     BlockMatrix sum_Lik_Dk_Ljkt;
-    //     sum_Lik_Dk_Ljkt.setZero();
-    //     for (int k = 0; k < j; ++k) {
-    //       const auto& Lik = L_[i][k];
-    //       const auto& Ljk = L_[j][k];
-    //       const auto& Dk = D_[k];
-    //       sum_Lik_Dk_Ljkt.noalias() += Lik * Dk * Ljk.transpose();
-    //     }
-    //     L_[i][j] = (A[i][j] - sum_Lik_Dk_Ljkt) * Dinv_[j];
-    //   }
-    // }
-
     return *this;
   }
 
@@ -130,35 +107,63 @@ class BlockCholeskyDecomposer {
     const auto& b = block_vector_in_rhs;
 
     // 1) Forward substitution
-    // zi = Lii^{-1}*(bi - sum_{j=0}^{i-1} Lij*zj)
+    //  Define y = D*L'*x, and solve L*y = b w.r.t. y by forward substitution
     const auto M = kNumBlock;
-    std::vector<BlockVector> z(M);
-    BlockVector sum_Lz;
+    std::vector<BlockVector> y(M, BlockVector::Zero());
+    BlockVector sum_Ly(BlockVector::Zero());
     for (int i = 0; i < M; ++i) {
-      sum_Lz.setZero();
-      for (int j = 0; j <= i - 1; ++j) {
-        sum_Lz += L_[i][j] * z[j];
-      }
-      z[i] = b[i] - sum_Lz;
+      Linv_[i][i] = L_[i][i].inverse();
+      sum_Ly.setZero();
+      for (int j = 0; j < i; ++j) sum_Ly += L_[i][j] * y[j];
+      y[i] = Linv_[i][i] * (b[i] - sum_Ly);
     }
 
     // 2) Diagonal inverse
-    // yi = Di^{-1} * zi
-    auto& y = z;
+    //  Define z = L'*x, and solve D*z = y w.r.t. z (D is block diagonal.)
+    auto& z = y;
     for (int i = 0; i < M; ++i) {
-      y[i] = D_[i].inverse() * z[i];
+      z[i] = Dinv_[i] * y[i];
     }
 
     // 3) Backward substitution
-    // xi = {Lii^{\top}}^{-1} * (yi - sum_{j=i+1}^{N-1}(Lji^{\top}*xj) )
-    std::vector<BlockVector> x(M);
+    //  Solve L'*x = z w.r.t. x by backward substitution
+    BlockVector sum_Lz(BlockVector::Zero());
+    auto& x = z;
     for (int i = M - 1; i >= 0; --i) {
       sum_Lz.setZero();
-      for (int j = i + 1; j <= M - 1; ++j) {
+      for (int j = M - 1; j > i; --j) {
         sum_Lz += L_[j][i].transpose() * x[j];
       }
-      x[i] = y[i] - sum_Lz;
+      x[i] = L_[i][i].transpose().inverse() * (z[i] - sum_Lz);
     }
+
+    // std::vector<BlockVector> z(M, BlockVector::Zero());
+    // BlockVector sum_Lz(BlockVector::Zero());
+    // for (int i = 0; i < M; ++i) {
+    //   sum_Lz.setZero();
+    //   for (int j = 0; j <= i - 1; ++j) {
+    //     sum_Lz += L_[i][j] * z[j];
+    //   }
+    //   z[i] = b[i] - sum_Lz;
+    // }
+
+    // // 2) Diagonal inverse
+    // // yi = Di^{-1} * zi
+    // auto& y = z;
+    // for (int i = 0; i < M; ++i) {
+    //   y[i] = D_[i].inverse() * z[i];
+    // }
+
+    // // 3) Backward substitution
+    // // xi = {Lii^{\top}}^{-1} * (yi - sum_{j=i+1}^{N-1}(Lji^{\top}*xj) )
+    // std::vector<BlockVector> x(M);
+    // for (int i = M - 1; i >= 0; --i) {
+    //   sum_Lz.setZero();
+    //   for (int j = i + 1; j <= M - 1; ++j) {
+    //     sum_Lz += L_[j][i].transpose() * x[j];
+    //   }
+    //   x[i] = y[i] - sum_Lz;
+    // }
 
     return x;
   }
@@ -174,10 +179,13 @@ class BlockCholeskyDecomposer {
  private:
   void InitializeMatrices() {
     L_.resize(kNumBlock);
+    Linv_.resize(kNumBlock);
     for (int row = 0; row < kNumBlock; ++row) {
       L_.at(row).resize(row + 1);
+      Linv_.at(row).resize(row + 1);
       for (int col = 0; col <= row; ++col) {
         L_.at(row).at(col).setZero();
+        Linv_.at(row).at(col).setZero();
       }
     }
 
@@ -190,7 +198,8 @@ class BlockCholeskyDecomposer {
   }
 
  private:
-  std::vector<std::vector<BlockMatrix>> L_;  // kNumBlock*(kNumBlock+1)/2
-  std::vector<BlockMatrix> D_;               // kNumBlock
-  std::vector<BlockMatrix> Dinv_;            // kNumBlock
+  std::vector<std::vector<BlockMatrix>> L_;     // kNumBlock*(kNumBlock+1)/2
+  std::vector<std::vector<BlockMatrix>> Linv_;  // kNumBlock*(kNumBlock+1)/2
+  std::vector<BlockMatrix> D_;                  // kNumBlock
+  std::vector<BlockMatrix> Dinv_;               // kNumBlock
 };
