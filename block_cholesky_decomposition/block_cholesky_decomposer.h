@@ -65,6 +65,16 @@ class BlockCholeskyDecomposer {
     for (int i = 0; i < M; ++i) L_[i][i].setIdentity();
 
     for (int i = 0; i < M; ++i) {
+      BlockMatrix sum_Lik_Dk_Likt;
+      sum_Lik_Dk_Likt.setZero();
+      for (int k = 0; k < i; ++k) {
+        const auto& Lik = L_[i][k];
+        const auto& Dk = D_[k];
+        sum_Lik_Dk_Likt.noalias() += Lik * Dk * Lik.transpose();
+      }
+      D_[i] = A[i][i] - sum_Lik_Dk_Likt;
+      Dinv_[i] = D_[i].inverse();
+
       for (int j = 0; j < i; ++j) {
         BlockMatrix sum_Lik_Dk_Ljkt;
         sum_Lik_Dk_Ljkt.setZero();
@@ -76,16 +86,6 @@ class BlockCholeskyDecomposer {
         }
         L_[i][j] = (A[i][j] - sum_Lik_Dk_Ljkt) * Dinv_[j];
       }
-
-      BlockMatrix sum_Lik_Dk_Likt;
-      sum_Lik_Dk_Likt.setZero();
-      for (int k = 0; k < i; ++k) {
-        const auto& Lik = L_[i][k];
-        const auto& Dk = D_[k];
-        sum_Lik_Dk_Likt.noalias() += Lik * Dk * Lik.transpose();
-      }
-      D_[i] = A[i][i] - sum_Lik_Dk_Likt;
-      Dinv_[i] = D_[i].inverse();
     }
 
     return *this;
@@ -120,50 +120,20 @@ class BlockCholeskyDecomposer {
 
     // 2) Diagonal inverse
     //  Define z = L'*x, and solve D*z = y w.r.t. z (D is block diagonal.)
-    auto& z = y;
-    for (int i = 0; i < M; ++i) {
-      z[i] = Dinv_[i] * y[i];
-    }
+    std::vector<BlockVector> z(M, BlockVector::Zero());
+    for (int i = 0; i < M; ++i) z[i] = Dinv_[i] * y[i];
 
     // 3) Backward substitution
     //  Solve L'*x = z w.r.t. x by backward substitution
-    BlockVector sum_Lz(BlockVector::Zero());
-    auto& x = z;
+    BlockVector sum_Lx(BlockVector::Zero());
+    std::vector<BlockVector> x(M, BlockVector::Zero());
     for (int i = M - 1; i >= 0; --i) {
-      sum_Lz.setZero();
+      sum_Lx.setZero();
       for (int j = M - 1; j > i; --j) {
-        sum_Lz += L_[j][i].transpose() * x[j];
+        sum_Lx += L_[j][i].transpose() * x[j];
       }
-      x[i] = L_[i][i].transpose().inverse() * (z[i] - sum_Lz);
+      x[i] = Linv_[i][i].transpose() * (z[i] - sum_Lx);
     }
-
-    // std::vector<BlockVector> z(M, BlockVector::Zero());
-    // BlockVector sum_Lz(BlockVector::Zero());
-    // for (int i = 0; i < M; ++i) {
-    //   sum_Lz.setZero();
-    //   for (int j = 0; j <= i - 1; ++j) {
-    //     sum_Lz += L_[i][j] * z[j];
-    //   }
-    //   z[i] = b[i] - sum_Lz;
-    // }
-
-    // // 2) Diagonal inverse
-    // // yi = Di^{-1} * zi
-    // auto& y = z;
-    // for (int i = 0; i < M; ++i) {
-    //   y[i] = D_[i].inverse() * z[i];
-    // }
-
-    // // 3) Backward substitution
-    // // xi = {Lii^{\top}}^{-1} * (yi - sum_{j=i+1}^{N-1}(Lji^{\top}*xj) )
-    // std::vector<BlockVector> x(M);
-    // for (int i = M - 1; i >= 0; --i) {
-    //   sum_Lz.setZero();
-    //   for (int j = i + 1; j <= M - 1; ++j) {
-    //     sum_Lz += L_[j][i].transpose() * x[j];
-    //   }
-    //   x[i] = y[i] - sum_Lz;
-    // }
 
     return x;
   }

@@ -14,9 +14,9 @@ using namespace std::chrono_literals;
 
 int main() {
   const int kDimRes{2};
-  const int kNumRes{560};
+  const int kNumRes{90};
   const int kDimParam(6);
-  const int kNumParam{200};
+  const int kNumParam{5};
 
   using BlockMatrix = Eigen::Matrix<double, kDimParam, kDimParam>;
   using BlockVector = Eigen::Matrix<double, kDimParam, 1>;
@@ -100,7 +100,12 @@ int main() {
   std::cerr << " diff3: " << H_true * x_est - g_true << std::endl;
 
   auto diff_H = H_true - A_mat_est;
+  std::cerr << "DIFF!\n";
   std::cerr << diff_H << std::endl;
+
+  Eigen::MatrixXd L_true = eigen_ldlt.compute(H_true).matrixL();
+  std::cerr << "Ltrue\n";
+  std::cerr << L_true - L_mat_est << std::endl;
 
   return 0;
 }
