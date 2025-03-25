@@ -12,7 +12,7 @@ include_directories(${Eigen3_INCLUDE_DIRS})
 
 set(SRC ${SRC} 
   timer.cpp
-  thirdparty/csparse.cc
+  #thirdparty/csparse.cc
 )
 
 add_executable(block_cholesky_decomposition main.cc ${SRC})

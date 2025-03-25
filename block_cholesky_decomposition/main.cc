@@ -15,8 +15,8 @@ using namespace std::chrono_literals;
 int main() {
   const int kDimRes{2};
   const int kNumRes{1900};
-  const int kDimParam(3);
-  const int kNumParam{20};
+  const int kDimParam(2);
+  const int kNumParam{600};
 
   using BlockMatrix = Eigen::Matrix<double, kDimParam, kDimParam>;
   using BlockVector = Eigen::Matrix<double, kDimParam, 1>;
@@ -36,8 +36,6 @@ int main() {
   Eigen::MatrixXd g_true(kDimParam * kNumParam, 1);
   for (int i = 0; i < kNumParam; ++i)
     g_true.block<kDimParam, 1>(kDimParam * i, 0).setRandom();
-
-  std::this_thread::sleep_for(1000ms);
 
   timer::tic();
   const Eigen::MatrixXd x_large_true1 = H_true.inverse() * g_true;
@@ -88,12 +86,11 @@ int main() {
   }
 
   // auto A_mat_est = L_mat_est * D_mat_est * L_mat_est.transpose();
-  Eigen::MatrixXd x_est(kDimParam * kNumParam, 1);
   for (int i = 0; i < kNumParam; ++i) {
-    x_est.block<kDimParam, 1>(kDimParam * i, 0) = x[i];
-    std::cerr << "Norm of " << i << "-th parameter block is "
-              << (x[i] - x_ldlt.block<kDimParam, 1>(kDimParam * i, 0)).norm()
-              << std::endl;
+    double a = (x[i] - x_ldlt.block<kDimParam, 1>(kDimParam * i, 0)).norm();
+    // std::cerr << "Norm of " << i << "-th parameter block is "
+    //           << (x[i] - x_ldlt.block<kDimParam, 1>(kDimParam * i, 0)).norm()
+    //           << std::endl;
   }
 
   // auto diff_H = H_true - A_mat_est;
