@@ -59,32 +59,21 @@ class BlockCholeskyDecomposer {
 
     Reset();
 
-    const auto M = kNumBlock;
     const auto& A = block_full_matrix;
 
-    for (int i = 0; i < M; ++i) L_[i][i].setIdentity();
+    for (int i = 0; i < kNumBlock; ++i) {
+      L_[i][i].setIdentity();
+      for (int j = 0; j <= i; ++j) {
+        BlockMatrix sum_Lik_Dk_Ljkt{BlockMatrix::Zero()};
+        for (int k = 0; k < j; ++k)
+          sum_Lik_Dk_Ljkt += L_[i][k] * D_[k] * L_[j][k].transpose();
 
-    for (int i = 0; i < M; ++i) {
-      BlockMatrix sum_Lik_Dk_Likt;
-      sum_Lik_Dk_Likt.setZero();
-      for (int k = 0; k < i; ++k) {
-        const auto& Lik = L_[i][k];
-        const auto& Dk = D_[k];
-        sum_Lik_Dk_Likt.noalias() += Lik * Dk * Lik.transpose();
-      }
-      D_[i] = A[i][i] - sum_Lik_Dk_Likt;
-      Dinv_[i] = D_[i].inverse();
-
-      for (int j = 0; j < i; ++j) {
-        BlockMatrix sum_Lik_Dk_Ljkt;
-        sum_Lik_Dk_Ljkt.setZero();
-        for (int k = 0; k < j; ++k) {
-          const auto& Lik = L_[i][k];
-          const auto& Ljk = L_[j][k];
-          const auto& Dk = D_[k];
-          sum_Lik_Dk_Ljkt.noalias() += Lik * Dk * Ljk.transpose();
+        if (i == j) {
+          D_[i] = A[i][i] - sum_Lik_Dk_Ljkt;
+          Dinv_[i] = D_[i].inverse();
+        } else {
+          L_[i][j] = (A[i][j] - sum_Lik_Dk_Ljkt) * Dinv_[j];
         }
-        L_[i][j] = (A[i][j] - sum_Lik_Dk_Ljkt) * Dinv_[j];
       }
     }
 
