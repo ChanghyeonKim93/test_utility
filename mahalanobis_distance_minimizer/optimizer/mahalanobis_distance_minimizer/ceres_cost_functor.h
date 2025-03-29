@@ -23,8 +23,8 @@ class RedundantMahalanobisDistanceCostFunctor {
                   T* residual) const {
     Eigen::Matrix<T, 3, 1> translation(translation_ptr[0], translation_ptr[1],
                                        translation_ptr[2]);
-    Eigen::Quaternion<T> rotation(quaternion_ptr[3], quaternion_ptr[0],
-                                  quaternion_ptr[1], quaternion_ptr[2]);
+    Eigen::Quaternion<T> rotation(quaternion_ptr[0], quaternion_ptr[1],
+                                  quaternion_ptr[2], quaternion_ptr[3]);
     for (size_t i = 0; i < correspondences_.size(); ++i) {
       const auto& corr = correspondences_[i];
       Eigen::Matrix<T, 3, 1> warped_point =

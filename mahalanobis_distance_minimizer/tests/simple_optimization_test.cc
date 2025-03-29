@@ -17,7 +17,7 @@
 using VoxelKey = uint64_t;
 using NdtMap = std::unordered_map<VoxelKey, NDT>;
 
-std::vector<Eigen::Vector3d> GenerateGlobalPoints();
+std::vector<Vec3> GenerateGlobalPoints();
 std::vector<Vec3> FilterPoints(const std::vector<Vec3>& points,
                                const double filter_voxel_size);
 std::vector<Vec3> WarpPoints(const std::vector<Vec3>& points, const Pose& pose);
@@ -32,7 +32,7 @@ Pose OptimizePose(const NdtMap& ndt_map, const std::vector<Vec3>& local_points,
                   const Pose& pose);
 
 int main(int argc, char** argv) {
-  constexpr double kVoxelResolution{0.5};
+  constexpr double kVoxelResolution{1.0};
   constexpr double kFilterVoxelResolution{0.1};
 
   // Make global points
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
   Pose true_pose{Pose::Identity()};
   true_pose.translation() = Vec3(-0.2, 0.123, 0.3);
   true_pose.linear() =
-      Eigen::AngleAxisd(0.05, Vec3(0.0, 0.0, 1.0)).toRotationMatrix();
+      Eigen::AngleAxisd(0.1, Vec3(0.0, 0.0, 1.0)).toRotationMatrix();
 
   // Create local points
   const auto filtered_points = FilterPoints(points, kFilterVoxelResolution);
@@ -152,7 +152,10 @@ void UpdateNdtMap(const std::vector<Vec3>& points,
 
   for (const auto& voxel_key : updated_voxel_key_set) {
     auto& ndt = ndt_map->at(voxel_key);
-    if (ndt.count < 5) continue;
+    if (ndt.count < 5) {
+      ndt.is_valid = false;
+      continue;
+    }
 
     ndt.mean = ndt.sum / ndt.count;
     const Mat3x3 covariance =
@@ -171,8 +174,8 @@ void UpdateNdtMap(const std::vector<Vec3>& points,
     eigvals(0) = std::max(eigvals(0), eigvals(2) * min_eigval_ratio);
     eigvals(1) = std::max(eigvals(1), eigvals(2) * min_eigval_ratio);
 
-    ndt.sqrt_information = eigvals.cwiseSqrt().cwiseInverse().asDiagonal() *
-                           eigsol.eigenvectors().transpose();
+    ndt.sqrt_information =
+        eigvals.cwiseInverse().cwiseSqrt().asDiagonal() * eigsol.eigenvectors();
 
     ndt.information = ndt.sqrt_information.transpose() * ndt.sqrt_information;
   }
@@ -180,12 +183,13 @@ void UpdateNdtMap(const std::vector<Vec3>& points,
 
 VoxelKey ComputeVoxelKey(const Vec3& point,
                          const double inverse_voxel_resolution) {
+  // Note: Cantor pairing function
   int x_key = std::floor(point.x() * inverse_voxel_resolution);
   int y_key = std::floor(point.y() * inverse_voxel_resolution);
   int z_key = std::floor(point.z() * inverse_voxel_resolution);
-  x_key = x_key > 0 ? 2 * x_key : -2 * x_key - 1;
-  y_key = y_key > 0 ? 2 * y_key : -2 * y_key - 1;
-  z_key = z_key > 0 ? 2 * z_key : -2 * z_key - 1;
+  x_key = x_key >= 0 ? 2 * x_key : -2 * x_key - 1;
+  y_key = y_key >= 0 ? 2 * y_key : -2 * y_key - 1;
+  z_key = z_key >= 0 ? 2 * z_key : -2 * z_key - 1;
   uint64_t xy_key = (x_key + y_key) * (x_key + y_key + 1) / 2 + y_key;
   uint64_t xyz_key = (xy_key + z_key) * (xy_key + z_key + 1) / 2 + z_key;
   return xyz_key;
@@ -194,7 +198,7 @@ VoxelKey ComputeVoxelKey(const Vec3& point,
 std::vector<Correspondence> MatchPointCloud(
     const NdtMap& ndt_map, const std::vector<Vec3>& local_points,
     const Pose& pose) {
-  constexpr int kNumNeighbors{3};
+  constexpr int kNumNeighbors{2};
   constexpr double kSearchRadius{1.0};
 
   const auto points = WarpPoints(local_points, pose);
@@ -208,38 +212,34 @@ std::vector<Correspondence> MatchPointCloud(
     voxel_keys.push_back(voxel_key);
     ndt_means.push_back(ndt.mean);
   }
-
-  double* points_array = const_cast<double*>(ndt_means.data()->data());
-  auto flann_points = flann::Matrix<double>(points_array, ndt_means.size(), 3);
-  kdtree.buildIndex(flann_points);
+  double* ndt_means_array = const_cast<double*>(ndt_means.data()->data());
+  kdtree.buildIndex(
+      flann::Matrix<double>(ndt_means_array, ndt_means.size(), 3));
 
   // Find the nearest neighbors in the kdtree
-  std::vector<Correspondence> correspondences;
-  correspondences.reserve(points.size());
-  flann::Matrix<double> flann_query(const_cast<double*>(points.data()->data()),
-                                    points.size(), 3);
-
-  std::cerr << flann_query.rows << " " << flann_query.cols << std::endl;
-
-  std::vector<std::vector<size_t>> indices;
-  std::vector<std::vector<double>> distances;
-  indices.resize(points.size());
-  distances.resize(points.size());
   auto search_params = flann::SearchParams();
   search_params.max_neighbors = kNumNeighbors;
-  search_params.eps = 0.2;
-  if (kdtree.radiusSearch(flann_query, indices, distances,
-                          kSearchRadius * kSearchRadius, search_params)) {
-    for (size_t point_index = 0; point_index < points.size(); ++point_index) {
-      const auto& indices_of_point = indices[point_index];
-      for (const auto& index : indices_of_point) {
-        const auto& matched_ndt = ndt_map.at(voxel_keys[index]);
-        correspondences.emplace_back(
-            Correspondence{points.at(point_index), matched_ndt});
+  search_params.eps = 0.0;
+
+  std::vector<Correspondence> correspondences;
+  correspondences.reserve(points.size());
+  for (size_t index = 0; index < points.size(); ++index) {
+    const auto& point = points.at(index);
+    const auto& local_point = local_points.at(index);
+    Correspondence corr;
+    corr.point = local_point;
+
+    std::vector<std::vector<size_t>> matched_ndt_mean_indices;
+    std::vector<std::vector<double>> distances;
+    flann::Matrix<double> flann_query(const_cast<double*>(point.data()), 1, 3);
+    if (kdtree.radiusSearch(flann_query, matched_ndt_mean_indices, distances,
+                            kSearchRadius, search_params)) {
+      for (const auto& matched_ndt_mean_index : matched_ndt_mean_indices[0]) {
+        corr.ndt = ndt_map.at(voxel_keys[matched_ndt_mean_index]);
+        correspondences.push_back(corr);
       }
     }
   }
-
   return correspondences;
 }
 
@@ -248,7 +248,10 @@ Pose OptimizePose(const NdtMap& ndt_map, const std::vector<Vec3>& local_points,
   double optimized_translation[3] = {initial_pose.translation().x(),
                                      initial_pose.translation().y(),
                                      initial_pose.translation().z()};
-  Orientation optimized_orientation(initial_pose.rotation());
+  auto initial_orientation = Orientation(initial_pose.rotation());
+  double optimized_orientation[4] = {
+      initial_orientation.w(), initial_orientation.x(), initial_orientation.y(),
+      initial_orientation.z()};
 
   Pose optimized_pose{Pose::Identity()};
   for (int outer_iter = 0; outer_iter < 10; ++outer_iter) {
@@ -257,7 +260,9 @@ Pose OptimizePose(const NdtMap& ndt_map, const std::vector<Vec3>& local_points,
         Vec3(optimized_translation[0], optimized_translation[1],
              optimized_translation[2]);
     last_optimized_pose.linear() =
-        Eigen::Quaterniond(optimized_orientation).toRotationMatrix();
+        Eigen::Quaterniond(optimized_orientation[0], optimized_orientation[1],
+                           optimized_orientation[2], optimized_orientation[3])
+            .toRotationMatrix();
 
     // Find correspondences
     const auto correspondences =
@@ -269,11 +274,12 @@ Pose OptimizePose(const NdtMap& ndt_map, const std::vector<Vec3>& local_points,
             RedundantMahalanobisDistanceCostFunctor::Create(correspondences,
                                                             1.0, 1.0);
     problem.AddResidualBlock(cost_function, nullptr, optimized_translation,
-                             optimized_orientation.coeffs().data());
+                             optimized_orientation);
 
     ceres::Solver::Options options;
-    options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
-    options.max_num_iterations = 20;
+    // options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
+    options.linear_solver_type = ceres::DENSE_QR;
+    options.max_num_iterations = 30;
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
     std::cerr << "Summary: " << summary.BriefReport() << std::endl;
@@ -282,11 +288,14 @@ Pose OptimizePose(const NdtMap& ndt_map, const std::vector<Vec3>& local_points,
     current_optimized_pose.translation() =
         Vec3(optimized_translation[0], optimized_translation[1],
              optimized_translation[2]);
-    current_optimized_pose.linear() = optimized_orientation.toRotationMatrix();
+    current_optimized_pose.linear() =
+        Orientation(optimized_orientation[0], optimized_orientation[1],
+                    optimized_orientation[2], optimized_orientation[3])
+            .toRotationMatrix();
     optimized_pose = current_optimized_pose;
     Pose pose_diff = current_optimized_pose.inverse() * last_optimized_pose;
-    if (pose_diff.translation().norm() < 1e-5 &&
-        Orientation(pose_diff.linear()).vec().norm() < 1e-5) {
+    if (pose_diff.translation().norm() < 1e-6 &&
+        Orientation(pose_diff.linear()).vec().norm() < 1e-6) {
       break;
     }
   }
