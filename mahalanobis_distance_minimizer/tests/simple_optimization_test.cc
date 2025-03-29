@@ -4,31 +4,72 @@
 
 #include "Eigen/Dense"
 
-#include "nanoflann.h"
+#include "ceres/ceres.h"
+#include "flann/algorithms/dist.h"
+#include "flann/algorithms/kdtree_single_index.h"
+#include "flann/flann.hpp"
+
+#include "optimizer/mahalanobis_distance_minimizer/ceres_cost_functor.h"
+#include "optimizer/mahalanobis_distance_minimizer/mahalanobis_distance_minimizer.h"
+#include "optimizer/mahalanobis_distance_minimizer/mahalanobis_distance_minimizer_ceres.h"
 #include "types.h"
 
 using VoxelKey = uint64_t;
 using NdtMap = std::unordered_map<VoxelKey, NDT>;
 
-std::vector<Eigen::Vector3d> GeneratePointCloud();
-void UpdateNdtMap(const std::vector<Vec3>& points, NdtMap* ndt_map);
+std::vector<Eigen::Vector3d> GenerateGlobalPoints();
+std::vector<Vec3> FilterPoints(const std::vector<Vec3>& points,
+                               const double filter_voxel_size);
+std::vector<Vec3> WarpPoints(const std::vector<Vec3>& points, const Pose& pose);
+void UpdateNdtMap(const std::vector<Vec3>& points,
+                  const double voxel_resolution, NdtMap* ndt_map);
 VoxelKey ComputeVoxelKey(const Vec3& point,
                          const double inverse_voxel_resolution);
-std::vector<Correspondence> MatchPointCloud(const NdtMap& ndt_map,
-                                            const std::vector<Vec3>& points);
+std::vector<Correspondence> MatchPointCloud(
+    const NdtMap& ndt_map, const std::vector<Vec3>& local_points,
+    const Pose& pose);
+Pose OptimizePose(const NdtMap& ndt_map, const std::vector<Vec3>& local_points,
+                  const Pose& pose);
 
 int main(int argc, char** argv) {
-  const auto points = GeneratePointCloud();
+  constexpr double kVoxelResolution{0.5};
+  constexpr double kFilterVoxelResolution{0.1};
+
+  // Make global points
+  const auto points = GenerateGlobalPoints();
   std::cerr << "# points: " << points.size() << std::endl;
 
+  // Create NDT map by global points
   NdtMap ndt_map;
-  UpdateNdtMap(points, &ndt_map);
+  UpdateNdtMap(points, kVoxelResolution, &ndt_map);
   std::cerr << "Ndt map size: " << ndt_map.size() << std::endl;
+
+  // Set true pose
+  Pose true_pose{Pose::Identity()};
+  true_pose.translation() = Vec3(-0.2, 0.123, 0.3);
+  true_pose.linear() =
+      Eigen::AngleAxisd(0.05, Vec3(0.0, 0.0, 1.0)).toRotationMatrix();
+
+  // Create local points
+  const auto filtered_points = FilterPoints(points, kFilterVoxelResolution);
+  const auto local_points = WarpPoints(filtered_points, true_pose.inverse());
+
+  // Optimize pose
+  Pose initial_pose{Pose::Identity()};
+  const auto optimized_pose = OptimizePose(ndt_map, local_points, initial_pose);
+
+  std::cerr << "Optimized pose: " << optimized_pose.translation().transpose()
+            << " "
+            << Eigen::Quaterniond(optimized_pose.linear()).coeffs().transpose()
+            << std::endl;
+  std::cerr << "True pose: " << true_pose.translation().transpose() << " "
+            << Eigen::Quaterniond(true_pose.linear()).coeffs().transpose()
+            << std::endl;
 
   return 0;
 }
 
-std::vector<Eigen::Vector3d> GeneratePointCloud() {
+std::vector<Eigen::Vector3d> GenerateGlobalPoints() {
   const double width = 5.0;
   const double length = 7.0;
   const double height = 2.5;
@@ -64,8 +105,38 @@ std::vector<Eigen::Vector3d> GeneratePointCloud() {
   return points;
 }
 
-void UpdateNdtMap(const std::vector<Vec3>& points, NdtMap* ndt_map) {
-  const double voxel_resolution{0.5};
+std::vector<Vec3> FilterPoints(const std::vector<Vec3>& points,
+                               const double filter_voxel_size) {
+  const double voxel_resolution{filter_voxel_size};
+  const double inv_res = 1.0 / voxel_resolution;
+  std::unordered_set<VoxelKey> filtered_voxel_key_set;
+  std::vector<Vec3> filtered_points;
+  filtered_points.reserve(points.size());
+  for (const auto& point : points) {
+    const auto voxel_key = ComputeVoxelKey(point, inv_res);
+    if (filtered_voxel_key_set.find(voxel_key) !=
+        filtered_voxel_key_set.end()) {
+      continue;
+    }
+    filtered_voxel_key_set.insert(voxel_key);
+    filtered_points.push_back(point);
+  }
+  return filtered_points;
+}
+
+std::vector<Vec3> WarpPoints(const std::vector<Vec3>& points,
+                             const Pose& pose) {
+  std::vector<Vec3> warped_points;
+  warped_points.reserve(points.size());
+  for (const auto& point : points) {
+    Vec3 warped_point = pose * point;
+    warped_points.push_back(warped_point);
+  }
+  return warped_points;
+}
+
+void UpdateNdtMap(const std::vector<Vec3>& points,
+                  const double voxel_resolution, NdtMap* ndt_map) {
   const double inv_res = 1.0 / voxel_resolution;
 
   std::unordered_set<VoxelKey> updated_voxel_key_set;
@@ -78,16 +149,17 @@ void UpdateNdtMap(const std::vector<Vec3>& points, NdtMap* ndt_map) {
     ndt.sum += point;
     ndt.moment += point * point.transpose();
   }
+
   for (const auto& voxel_key : updated_voxel_key_set) {
     auto& ndt = ndt_map->at(voxel_key);
     if (ndt.count < 5) continue;
 
     ndt.mean = ndt.sum / ndt.count;
-    const auto covariance =
+    const Mat3x3 covariance =
         ndt.moment / ndt.count - ndt.mean * ndt.mean.transpose();
 
     Eigen::SelfAdjointEigenSolver<Mat3x3> eigsol(covariance);
-    if (eigsol.info() != Eigen::Success || eigsol.eigenvalues()(2) < 0.1) {
+    if (eigsol.info() != Eigen::Success || eigsol.eigenvalues()(2) < 0.01) {
       ndt.is_valid = false;
       return;
     }
@@ -119,33 +191,105 @@ VoxelKey ComputeVoxelKey(const Vec3& point,
   return xyz_key;
 }
 
-std::vector<Correspondence> MatchPointCloud(const NdtMap& ndt_map,
-                                            const std::vector<Vec3>& points) {
+std::vector<Correspondence> MatchPointCloud(
+    const NdtMap& ndt_map, const std::vector<Vec3>& local_points,
+    const Pose& pose) {
+  constexpr int kNumNeighbors{3};
+  constexpr double kSearchRadius{1.0};
+
+  const auto points = WarpPoints(local_points, pose);
+
+  // Generate kdtree of the voxel_key-ndt mean pair
+  flann::KDTreeSingleIndex<flann::L2_Simple<double>> kdtree;
+  std::vector<VoxelKey> voxel_keys;
+  std::vector<Vec3> ndt_means;
+  for (const auto& [voxel_key, ndt] : ndt_map) {
+    if (!ndt.is_valid) continue;
+    voxel_keys.push_back(voxel_key);
+    ndt_means.push_back(ndt.mean);
+  }
+
+  double* points_array = const_cast<double*>(ndt_means.data()->data());
+  auto flann_points = flann::Matrix<double>(points_array, ndt_means.size(), 3);
+  kdtree.buildIndex(flann_points);
+
+  // Find the nearest neighbors in the kdtree
   std::vector<Correspondence> correspondences;
   correspondences.reserve(points.size());
-  for (const auto& point : points) {
-    const auto voxel_key = ComputeVoxelKey(point, 1.0 / 0.5);
-    if (ndt_map.find(voxel_key) == ndt_map.end()) continue;
+  flann::Matrix<double> flann_query(const_cast<double*>(points.data()->data()),
+                                    points.size(), 3);
 
-    const auto& ndt = ndt_map.at(voxel_key);
-    if (!ndt.is_valid) continue;
+  std::cerr << flann_query.rows << " " << flann_query.cols << std::endl;
 
-    Eigen::Vector3d transformed_point = ndt.sqrt_information * point;
-    correspondences.emplace_back(Correspondence{point, ndt});
+  std::vector<std::vector<size_t>> indices;
+  std::vector<std::vector<double>> distances;
+  indices.resize(points.size());
+  distances.resize(points.size());
+  auto search_params = flann::SearchParams();
+  search_params.max_neighbors = kNumNeighbors;
+  search_params.eps = 0.2;
+  if (kdtree.radiusSearch(flann_query, indices, distances,
+                          kSearchRadius * kSearchRadius, search_params)) {
+    for (size_t point_index = 0; point_index < points.size(); ++point_index) {
+      const auto& indices_of_point = indices[point_index];
+      for (const auto& index : indices_of_point) {
+        const auto& matched_ndt = ndt_map.at(voxel_keys[index]);
+        correspondences.emplace_back(
+            Correspondence{points.at(point_index), matched_ndt});
+      }
+    }
   }
-  // I want to use flann::KDTreeSingleIndex to find the nearest neighbors
-  // for (const auto& point : points) {
-  //   const auto voxel_key = ComputeVoxelKey(point, 1.0 / 0.5);
-  //   if (ndt_map.find(voxel_key) == ndt_map.end()) continue;
-  //   const auto& ndt = ndt_map.at(voxel_key);
-  //   if (!ndt.is_valid) continue;
-  //   const auto& mean_point = ndt.mean;
-  //   const auto& covariance = ndt.covariance;
-  //   const auto& sqrt_information = ndt.sqrt_information;
-  //   const auto& information = ndt.information;
-  //   const auto& transformed_point = ndt.sqrt_information * point;
-  //   correspondences.emplace_back(Correspondence{point, transformed_point});
-  // }
 
   return correspondences;
+}
+
+Pose OptimizePose(const NdtMap& ndt_map, const std::vector<Vec3>& local_points,
+                  const Pose& initial_pose) {
+  double optimized_translation[3] = {initial_pose.translation().x(),
+                                     initial_pose.translation().y(),
+                                     initial_pose.translation().z()};
+  Orientation optimized_orientation(initial_pose.rotation());
+
+  Pose optimized_pose{Pose::Identity()};
+  for (int outer_iter = 0; outer_iter < 10; ++outer_iter) {
+    Pose last_optimized_pose{Pose::Identity()};
+    last_optimized_pose.translation() =
+        Vec3(optimized_translation[0], optimized_translation[1],
+             optimized_translation[2]);
+    last_optimized_pose.linear() =
+        Eigen::Quaterniond(optimized_orientation).toRotationMatrix();
+
+    // Find correspondences
+    const auto correspondences =
+        MatchPointCloud(ndt_map, local_points, last_optimized_pose);
+
+    ceres::Problem problem;
+    ceres::CostFunction* cost_function =
+        optimizer::mahalanobis_distance_minimizer::
+            RedundantMahalanobisDistanceCostFunctor::Create(correspondences,
+                                                            1.0, 1.0);
+    problem.AddResidualBlock(cost_function, nullptr, optimized_translation,
+                             optimized_orientation.coeffs().data());
+
+    ceres::Solver::Options options;
+    options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
+    options.max_num_iterations = 20;
+    ceres::Solver::Summary summary;
+    ceres::Solve(options, &problem, &summary);
+    std::cerr << "Summary: " << summary.BriefReport() << std::endl;
+
+    Pose current_optimized_pose{Pose::Identity()};
+    current_optimized_pose.translation() =
+        Vec3(optimized_translation[0], optimized_translation[1],
+             optimized_translation[2]);
+    current_optimized_pose.linear() = optimized_orientation.toRotationMatrix();
+    optimized_pose = current_optimized_pose;
+    Pose pose_diff = current_optimized_pose.inverse() * last_optimized_pose;
+    if (pose_diff.translation().norm() < 1e-5 &&
+        Orientation(pose_diff.linear()).vec().norm() < 1e-5) {
+      break;
+    }
+  }
+
+  return optimized_pose;
 }

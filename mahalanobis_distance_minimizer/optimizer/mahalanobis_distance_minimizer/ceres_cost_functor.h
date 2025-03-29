@@ -32,7 +32,7 @@ class RedundantMahalanobisDistanceCostFunctor {
       Eigen::Matrix<T, 3, 1> e_i = warped_point - corr.ndt.mean.cast<T>();
       T squared_mahalanobis_dist =
           e_i.transpose() * corr.ndt.information.cast<T>() * e_i;
-      residual[i] = c1_ * ceres::exp(-c2_ * squared_mahalanobis_dist) - c1_;
+      residual[i] = c1_ - c1_ * ceres::exp(-c2_ * squared_mahalanobis_dist);
     }
     return true;
   }
@@ -42,7 +42,8 @@ class RedundantMahalanobisDistanceCostFunctor {
       const double c2) {
     return new ceres::AutoDiffCostFunction<
         RedundantMahalanobisDistanceCostFunctor, ceres::DYNAMIC, 3, 4>(
-        new RedundantMahalanobisDistanceCostFunctor(correspondences, c1, c2));
+        new RedundantMahalanobisDistanceCostFunctor(correspondences, c1, c2),
+        correspondences.size());
   }
 
  private:

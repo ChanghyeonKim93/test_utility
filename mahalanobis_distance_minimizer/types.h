@@ -1,5 +1,5 @@
-#ifndef TYPES_H_
-#define TYPES_H_
+#ifndef MAHALANOBIS_DISTANCE_MINIMIZER_TYPES_H_
+#define MAHALANOBIS_DISTANCE_MINIMIZER_TYPES_H_
 
 #include <unordered_map>
 
@@ -29,4 +29,4 @@ struct Correspondence {
   NDT ndt;
 };
 
-#endif  // TYPES_H_
+#endif  // #define MAHALANOBIS_DISTANCE_MINIMIZER_TYPES_H_
