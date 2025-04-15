@@ -4,18 +4,7 @@ clc; clear all; close all;
 load_parameters;
 
 parameters.control.gain_lateral_error = 10.0;
-parameters.control.gain_heading_error = 5.0;
-
-use_short_wheelbase   = true;
-use_tip_lateral_error = true;
-
-parameters.base_to_tip = 0.2;
-
-sim_time_scaler = 10;
-if(use_short_wheelbase) 
-  parameters.steer_to_rotation_center = 0.5;
-endif
-
+parameters.control.gain_heading_error = 5.
 % Destination and stopby point
 X_stopby = [-0.0;0.0;0.0];
 X_goal   = [-4.0; 0.0; 0.0]; 
@@ -23,7 +12,7 @@ X_goal   = [-4.0; 0.0; 0.0];
 X = [2.0; -1.0; -1.4];
 %X = [2.0; 1.5; pi/2+0.1];
 U = [0.0; 0.0];
-U_delay = zeros(2, floor(parameters.motion.delay / dt)+1);
+U_delay = zeros(2, floor(parameters.motion.delay / dt)+1);￣
 
 V_baselink = [0;0;0];
 
