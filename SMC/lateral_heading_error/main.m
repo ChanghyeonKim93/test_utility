@@ -3,14 +3,24 @@ clc; clear all; close all;
 %% Load parameters
 load_parameters;
 
-parameters.control.gain_lateral_error = 5.0;
-parameters.control.gain_heading_error = 2.0;
+parameters.control.gain_lateral_error = 10.0;
+parameters.control.gain_heading_error = 5.0;
+
+use_short_wheelbase   = true;
+use_tip_lateral_error = true;
+
+parameters.base_to_tip = 0.2;
+
+sim_time_scaler = 10;
+if(use_short_wheelbase) 
+  parameters.steer_to_rotation_center = 0.5;
+endif
 
 % Destination and stopby point
-X_stopby = [-2.0; 0.0; 0.0];
+X_stopby = [-0.0;0.0;0.0];
 X_goal   = [-4.0; 0.0; 0.0]; 
 
-X = [1.0; -0.4; -0.3];
+X = [2.0; -1.0; -1.4];
 %X = [2.0; 1.5; pi/2+0.1];
 U = [0.0; 0.0];
 U_delay = zeros(2, floor(parameters.motion.delay / dt)+1);
@@ -19,9 +29,7 @@ V_baselink = [0;0;0];
 
 simulation_time = 0.0;
 t = [0.0];
-
-X_des = X_stopby;
-is_stopby_passed = false;
+X_des = X_goal;
 while(1)
   if(t(end) > 60.0)
     break;
@@ -29,21 +37,17 @@ while(1)
 
   Xk = X(:, end);
 
-  if(~is_stopby_passed && 
-    abs(Xk(1) - X_stopby(1)) < 0.5 && abs(Xk(2) - X_stopby(2)) < 0.3)
-    parameters.control.gain_lateral_error = 1.0;
-    parameters.control.gain_heading_error = 10.0;
-    is_stopby_passed = true;
-    X_des = X_goal;
-  end
-  if(is_stopby_passed && 
-    abs(Xk(1) - X_goal(1)) < 0.05 && abs(Xk(2) - X_goal(2)) < 0.01)
+  if(abs(Xk(1) - X_goal(1)) < 0.1 && abs(Xk(2) - X_goal(2)) < 0.02)
     break;
   end
 
   direction_sign = -1;
-  Uk = lateral_heading_error_controller(Xk, U_delay(:,1), X_des, parameters, direction_sign);
-  
+  Uk=[0;0];
+  if(use_tip_lateral_error)
+    Uk = lateral_heading_error_controller_tip(Xk, U_delay(:,1), X_des, parameters, direction_sign);
+  else
+    Uk = lateral_heading_error_controller(Xk, U_delay(:,1), X_des, parameters, direction_sign);
+  endif
   U_delay = [U_delay, Uk];
   U_sim = U_delay(:,1);
   U_delay(:,1)=[];
@@ -64,6 +68,7 @@ while(1)
   t = [t,simulation_time];
 end
 
+%%
 % Drawing
 figure(1);
 hold on;
@@ -89,7 +94,7 @@ footprint_sides=[footprint.length/2, -footprint.length/2, -footprint.length/2, f
   footprint.width/2,footprint.width/2, -footprint.width/2, -footprint.width/2];
 rotation_center_vector=[0;0.1];
 
-T_C_Rc = GetPose(parameters.base_to_steer_length-parameters.footprint.offset.x-parameters.steer_to_rotation_center, 0, 0);
+T_Rc_C = GetPose(-(parameters.base_to_steer_length-parameters.footprint.offset.x-parameters.steer_to_rotation_center), 0, 0);
 T_Rc_Sc = GetPose(parameters.steer_to_rotation_center, 0, 0);
 T_C_tip = GetPose(-parameters.footprint.length/2, 0, 0);
 
@@ -124,16 +129,17 @@ xlim([0, t(end)]); grid minor;
 X_tip = [0;0];
 r_wheel = 0.15;
 
-for k = 1:1:length(X)
+for k = 1:sim_time_scaler:length(X)
   Xk = X(:,k);
   Uk = U(:,k);
   
-  % Footprint 
-  T_G_C = GetPose(Xk(1),Xk(2),Xk(3));
+  % Rotation center 
+  T_G_Rc = GetPose(Xk(1),Xk(2),Xk(3));
+  
+  % Footprint
+  T_G_C = T_G_Rc*T_Rc_C;
   S = T_G_C(1:2,1:2)*footprint_sides + T_G_C(1:2,3);
   
-  % Rotation center
-  T_G_Rc = T_G_C * T_C_Rc;
   T_G_Rce = T_G_Rc * GetPose(0.2, 0, 0);
   
   % Steer center
@@ -157,7 +163,7 @@ for k = 1:1:length(X)
   X_tip = [X_tip, [T_G_tip(1,3);T_G_tip(2,3)]];
   
   set(h_rc_traj, 'XData', X(1,1:k), 'YData', X(2,1:k));
-  set(h_tip_traj, 'XData', X_tip(1,1:k), 'YData', X_tip(2,1:k));
+  set(h_tip_traj, 'XData', X_tip(1,1:end), 'YData', X_tip(2,1:end));
   
   set(h_fs, 'XData', S(1,1:2), 'YData', S(2,1:2));
   set(h_ls, 'XData', S(1,2:3), 'YData', S(2,2:3));
@@ -176,5 +182,5 @@ for k = 1:1:length(X)
   set(h_wb, 'XData', t(1:k), 'YData', V_baselink(3,1:k));
   
   drawnow;
-  pause(dt/10);
+  pause(dt);
 endfor
