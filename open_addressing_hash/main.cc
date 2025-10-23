@@ -6,7 +6,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "open_addressing_hash_map.h"
+// #include "open_addressing_hash_map.h"
+#include "soa_oa_hash_map.h"
 
 struct Vec3i {
   int x{0};
@@ -21,6 +22,24 @@ struct Vec3i {
 
 template <>
 struct std::hash<Vec3i> {
+  size_t operator()(const Vec3i& v) const {
+    // FNV-1a 기반 해시 구현 - 분산 향상
+    constexpr size_t FNV_PRIME = 16777619;
+    constexpr size_t OFFSET_BASIS = 2166136261;
+
+    size_t hash = OFFSET_BASIS;
+    hash ^= static_cast<size_t>(v.x);
+    hash *= FNV_PRIME;
+    hash ^= static_cast<size_t>(v.y);
+    hash *= FNV_PRIME;
+    hash ^= static_cast<size_t>(v.z);
+    hash *= FNV_PRIME;
+
+    return hash;
+  }
+};
+
+struct Vec3iHash {
   size_t operator()(const Vec3i& v) const {
     // FNV-1a 기반 해시 구현 - 분산 향상
     constexpr size_t FNV_PRIME = 16777619;
@@ -89,8 +108,8 @@ NormalDistribution generateRandomNDT(int id) {
 }
 
 int main() {
-  const size_t NUM_ELEMENTS = 500000;
-  const size_t NUM_LOOKUPS = 10000;
+  const size_t NUM_ELEMENTS = 1000000;
+  const size_t NUM_LOOKUPS = 50000;
   const size_t INITIAL_CAPACITY = NUM_ELEMENTS / 0.5;  // 50% 로드 팩터로 시작
 
   // 난수 생성기 초기화
@@ -164,14 +183,15 @@ int main() {
 
   // 2. OpenAddressingHash 테스트
   {
-    OpenAddressingHash<Vec3i, NormalDistribution> custom_map(INITIAL_CAPACITY);
+    OpenAddressingHash<Vec3i, NormalDistribution, std::hash<Vec3i>> custom_map(
+        INITIAL_CAPACITY);
     // OpenAddressingHash<Vec3i, NormalDistribution>
     // custom_map(INITIAL_CAPACITY);
 
     // 삽입 시간 측정
     Timer insert_timer;
     for (const auto& [key, value] : data) {
-      custom_map.Insert(key, value);
+      custom_map.insert(key, value);
     }
     double custom_insert_time = insert_timer.elapsedMilliseconds();
 
@@ -179,7 +199,7 @@ int main() {
     Timer lookup_timer;
     size_t found_count = 0;
     for (const auto& key : lookup_keys) {
-      auto it = custom_map.Find(key);
+      auto it = custom_map.find(key);
       if (it != custom_map.end()) {
         found_count++;
         // 컴파일러 최적화 방지를 위한 더미 작업
@@ -202,9 +222,7 @@ int main() {
       count++;
     }
     std::cout << "맵 크기: " << count << std::endl;
-    std::cout << "슬롯 수: " << custom_map.next_power_of_two(INITIAL_CAPACITY)
-              << std::endl;
-    std::cout << "로드 팩터: " << custom_map.load_factor() << std::endl
+    std::cout << "로드 팩터: " << custom_map.get_load_factor() << std::endl
               << std::endl;
   }
 
