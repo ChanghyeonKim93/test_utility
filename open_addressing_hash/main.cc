@@ -18,6 +18,7 @@ struct Vec3i {
   bool operator==(const Vec3i& other) const {
     return x == other.x && y == other.y && z == other.z;
   }
+  bool operator!=(const Vec3i& other) const { return !(*this == other); }
 };
 
 template <>
@@ -109,7 +110,7 @@ NormalDistribution generateRandomNDT(int id) {
 
 int main() {
   const size_t NUM_ELEMENTS = 1000000;
-  const size_t NUM_LOOKUPS = 50000;
+  const size_t NUM_LOOKUPS = 500000;
   const size_t INITIAL_CAPACITY = NUM_ELEMENTS / 0.5;  // 50% 로드 팩터로 시작
 
   // 난수 생성기 초기화
@@ -150,9 +151,8 @@ int main() {
 
     // 삽입 시간 측정
     Timer insert_timer;
-    for (const auto& [key, value] : data) {
-      std_map.insert({key, value});
-    }
+    for (const auto& [key, value] : data) std_map.insert({key, value});
+
     double std_insert_time = insert_timer.elapsedMilliseconds();
 
     // 조회 시간 측정
@@ -204,6 +204,7 @@ int main() {
         found_count++;
         // 컴파일러 최적화 방지를 위한 더미 작업
         volatile int dummy = (*it).second.id;
+        (void)dummy;
       }
     }
     double custom_lookup_time = lookup_timer.elapsedMilliseconds();
@@ -219,6 +220,8 @@ int main() {
     // 모든 요소 개수 세기
     size_t count = 0;
     for (const auto& [key, value] : custom_map) {
+      (void)key;
+      (void)value;
       count++;
     }
     std::cout << "맵 크기: " << count << std::endl;

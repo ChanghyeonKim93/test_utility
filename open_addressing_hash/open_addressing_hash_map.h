@@ -36,10 +36,10 @@ class OpenAddressingHash {
   class iterator {
    public:
     using iterator_category = std::forward_iterator_tag;
-    using value_type = std::pair<const KeyType&, ValueType&>;
+    using KeyValuePair = std::pair<const KeyType&, ValueType&>;
     using difference_type = std::ptrdiff_t;
-    using pointer = value_type*;
-    using reference = value_type;
+    using KeyValuePairPtr = KeyValuePair*;
+    using KeyValuePairRef = KeyValuePair;
 
     iterator(OpenAddressingHash* hash, size_t index)
         : hash_map_(hash), index_(index) {
@@ -47,7 +47,7 @@ class OpenAddressingHash {
       if (index_ < hash_map_->num_slot_ &&
           (!hash_map_->slots_[index_].is_occupied ||
            hash_map_->slots_[index_].is_deleted)) {
-        advance_to_valid();
+        MoveToNextValidIndex();
       }
     }
 
@@ -55,7 +55,7 @@ class OpenAddressingHash {
     iterator& operator++() {
       if (index_ < hash_map_->num_slot_) {
         ++index_;
-        advance_to_valid();
+        MoveToNextValidIndex();
       }
       return *this;
     }
@@ -75,14 +75,14 @@ class OpenAddressingHash {
     bool operator!=(const iterator& other) const { return !(*this == other); }
 
     // 역참조 연산자
-    reference operator*() const {
+    KeyValuePairRef operator*() const {
       return {hash_map_->slots_[index_].key, hash_map_->slots_[index_].value};
     }
 
     // 화살표 연산자 추가
-    pointer operator->() const {
-      static value_type result = {hash_map_->slots_[index_].key,
-                                  hash_map_->slots_[index_].value};
+    KeyValuePairPtr operator->() const {
+      static KeyValuePair result = {hash_map_->slots_[index_].key,
+                                    hash_map_->slots_[index_].value};
       return &result;
     }
 
@@ -91,7 +91,7 @@ class OpenAddressingHash {
 
    private:
     // 다음 유효한 엔트리로 이동 - 삭제된 슬롯도 건너뜀
-    void advance_to_valid() {
+    void MoveToNextValidIndex() {
       while (index_ < hash_map_->num_slot_ &&
              (!hash_map_->slots_[index_].is_occupied ||
               hash_map_->slots_[index_].is_deleted)) {
@@ -109,10 +109,10 @@ class OpenAddressingHash {
   class const_iterator {
    public:
     using iterator_category = std::forward_iterator_tag;
-    using value_type = std::pair<const KeyType&, const ValueType&>;
+    using KeyValuePair = std::pair<const KeyType&, const ValueType&>;
     using difference_type = std::ptrdiff_t;
-    using pointer = value_type*;
-    using reference = value_type;
+    using pointer = KeyValuePair*;
+    using reference = KeyValuePair;
 
     const_iterator(const OpenAddressingHash* hash, size_t index)
         : hash_map_(hash), index_(index) {
@@ -156,8 +156,8 @@ class OpenAddressingHash {
 
     // 화살표 연산자 추가
     pointer operator->() const {
-      static value_type result = {hash_map_->slots_[index_].key,
-                                  hash_map_->slots_[index_].value};
+      static KeyValuePair result = {hash_map_->slots_[index_].key,
+                                    hash_map_->slots_[index_].value};
       return &result;
     }
 
