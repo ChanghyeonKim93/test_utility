@@ -6,18 +6,33 @@ struct Vec3i {
   int z{0};
 };
 
-uint64_t InterleaveBits(const uint32_t x) {
-  uint64_t result = static_cast<uint64_t>(x);
-  result = (result | (result << 16)) & 0x030000FF;
-  result = (result | (result << 8)) & 0x0300F00F;
-  result = (result | (result << 4)) & 0x030C30C3;
-  result = (result | (result << 2)) & 0x09249249;
-  return result;
+uint64_t GetMortonCode(const Vec3i& point) {
+  auto interleave_bits = [](const uint32_t x) -> uint64_t {
+    uint64_t result = static_cast<uint64_t>(x);
+    result = (result | (result << 16)) & 0x00FF0000FF0000FF;
+    result = (result | (result << 8)) & 0xF00F00F00F00F00F;
+    result = (result | (result << 4)) & 0x3063063063063063;
+    result = (result | (result << 2)) & 0x1249249249249249;
+    return result;
+  };
+  return (interleave_bits(point.x)) | (interleave_bits(point.y) << 1) |
+         (interleave_bits(point.z) << 2);
 }
 
-uint64_t GetMortonCode(const Vec3i& point) {
-  return (InterleaveBits(point.x) << 2) | (InterleaveBits(point.y) << 1) |
-         InterleaveBits(point.z);
+Vec3i DecodeMortonCode(uint64_t morton_code) {
+  auto decode = [](uint64_t code) {
+    uint64_t x = code & 0x1249249249249249;
+    x = (x | (x >> 2)) & 0x3063063063063063;
+    x = (x | (x >> 4)) & 0xF00F00F00F00F00F;
+    x = (x | (x >> 8)) & 0x00FF0000FF0000FF;
+    x = (x | (x >> 16)) & 0x00000000FFFFFFFF;
+    return static_cast<uint32_t>(x);
+  };
+  Vec3i point;
+  point.x = decode(morton_code);
+  point.y = decode(morton_code >> 1);
+  point.z = decode(morton_code >> 2);
+  return point;
 }
 
 int main(int, char**) {
@@ -33,6 +48,20 @@ int main(int, char**) {
   Vec3i p_end{5000, 5000, 5000};
   std::cout << "Point (5000,5000,5000) Morton Code: " << GetMortonCode(p_end)
             << std::endl;
+
+  for (int x = 0; x < 4; ++x) {
+    for (int y = 0; y < 4; ++y) {
+      for (int z = 0; z < 4; ++z) {
+        Vec3i p{x, y, z};
+        std::cout << "Point (" << x << "," << y << "," << z
+                  << ") Morton Code: " << GetMortonCode(p) << std::endl;
+        std::cout << "Decoded back: ";
+        Vec3i decoded = DecodeMortonCode(GetMortonCode(p));
+        std::cout << "(" << decoded.x << "," << decoded.y << "," << decoded.z
+                  << ")" << std::endl;
+      }
+    }
+  }
 
   return 0;
 }
