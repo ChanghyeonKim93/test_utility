@@ -9,9 +9,13 @@ struct Vec3i {
 uint64_t GetMortonCode(const Vec3i& point) {
   auto interleave_bits = [](const uint32_t x) -> uint64_t {
     uint64_t result = static_cast<uint64_t>(x);
+    // ==0b0000000011111111000000000000000011111111000000000000000011111111
     result = (result | (result << 16)) & 0x00FF0000FF0000FF;
+    // ==0b1111000000001111000000001111000000001111000000001111000000001111
     result = (result | (result << 8)) & 0xF00F00F00F00F00F;
+    // ==0b0011000011000011000011000011000011000011000011000011000011000011
     result = (result | (result << 4)) & 0x3063063063063063;
+    // ==0b1001001001001001001001001001001001001001001001001001001001001001
     result = (result | (result << 2)) & 0x1249249249249249;
     return result;
   };
