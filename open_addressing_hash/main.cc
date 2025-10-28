@@ -7,19 +7,9 @@
 #include <vector>
 
 // #include "open_addressing_hash_map.h"
+#include "chunk_hash_map.h"
 #include "soa_oa_hash_map.h"
-
-struct Vec3i {
-  int x{0};
-  int y{0};
-  int z{0};
-  Vec3i() = default;
-  Vec3i(int x_, int y_, int z_) : x(x_), y(y_), z(z_) {}
-  bool operator==(const Vec3i& other) const {
-    return x == other.x && y == other.y && z == other.z;
-  }
-  bool operator!=(const Vec3i& other) const { return !(*this == other); }
-};
+#include "types.h"
 
 template <>
 struct std::hash<Vec3i> {
@@ -109,7 +99,7 @@ NormalDistribution generateRandomNDT(int id) {
 }
 
 int main() {
-  const size_t NUM_ELEMENTS = 1000000;
+  const size_t NUM_ELEMENTS = 2000000;
   const size_t NUM_LOOKUPS = 500000;
   const size_t INITIAL_CAPACITY = NUM_ELEMENTS / 0.5;  // 50% 로드 팩터로 시작
 
@@ -168,11 +158,32 @@ int main() {
     }
     double std_lookup_time = lookup_timer.elapsedMilliseconds();
 
+    // 삭제 시간 측정
+    Timer erase_timer;
+    for (size_t i = 0; i < NUM_LOOKUPS / 2; ++i) {  // 일부 데이터 삭제
+      auto it = std_map.find(lookup_keys[i]);
+      if (it != std_map.end()) {
+        std_map.erase(it);
+      }
+    }
+    double custom_erase_time = erase_timer.elapsedMilliseconds();
+
+    // 삭제된 데이터 다시 삽입 시간 측정
+    Timer reinsert_timer;
+    for (size_t i = 0; i < NUM_LOOKUPS / 2; ++i) {
+      std_map.insert({lookup_keys[i], generateRandomNDT(static_cast<int>(i))});
+    }
+    double custom_reinsert_time = reinsert_timer.elapsedMilliseconds();
+
     std::cout << "std::unordered_map 결과:" << std::endl;
     std::cout << "삽입 시간: " << std::fixed << std::setprecision(2)
               << std_insert_time << " ms" << std::endl;
     std::cout << "조회 시간: " << std::fixed << std::setprecision(2)
               << std_lookup_time << " ms" << std::endl;
+    std::cout << "삭제 시간: " << std::fixed << std::setprecision(2)
+              << custom_erase_time << " ms" << std::endl;
+    std::cout << "재삽입 시간: " << std::fixed << std::setprecision(2)
+              << custom_reinsert_time << " ms" << std::endl;
     std::cout << "찾은 요소 수: " << found_count << "/" << NUM_LOOKUPS
               << std::endl;
     std::cout << "맵 크기: " << std_map.size() << std::endl;
@@ -209,11 +220,32 @@ int main() {
     }
     double custom_lookup_time = lookup_timer.elapsedMilliseconds();
 
+    // 삭제 시간 측정
+    Timer erase_timer;
+    for (size_t i = 0; i < NUM_LOOKUPS / 2; ++i) {  // 일부 데이터 삭제
+      auto it = custom_map.find(lookup_keys[i]);
+      if (it != custom_map.end()) {
+        custom_map.erase(it);
+      }
+    }
+    double custom_erase_time = erase_timer.elapsedMilliseconds();
+
+    // 삭제된 데이터 다시 삽입 시간 측정
+    Timer reinsert_timer;
+    for (size_t i = 0; i < NUM_LOOKUPS / 2; ++i) {
+      custom_map.insert(lookup_keys[i], generateRandomNDT(static_cast<int>(i)));
+    }
+    double custom_reinsert_time = reinsert_timer.elapsedMilliseconds();
+
     std::cout << "OpenAddressingHash 결과:" << std::endl;
     std::cout << "삽입 시간: " << std::fixed << std::setprecision(2)
               << custom_insert_time << " ms" << std::endl;
     std::cout << "조회 시간: " << std::fixed << std::setprecision(2)
               << custom_lookup_time << " ms" << std::endl;
+    std::cout << "삭제 시간: " << std::fixed << std::setprecision(2)
+              << custom_erase_time << " ms" << std::endl;
+    std::cout << "재삽입 시간: " << std::fixed << std::setprecision(2)
+              << custom_reinsert_time << " ms" << std::endl;
     std::cout << "찾은 요소 수: " << found_count << "/" << NUM_LOOKUPS
               << std::endl;
 
@@ -229,7 +261,42 @@ int main() {
               << std::endl;
   }
 
-  // 3. 성능 비교 요약
+  {
+    // 3. ChunkHashMap 테스트
+    ChunkHashMap<NormalDistribution> chunk_map;
+    // 삽입 시간 측정
+    Timer insert_timer;
+    for (const auto& [key, value] : data) {
+      chunk_map.insert(key, value);
+    }
+    double chunk_insert_time = insert_timer.elapsedMilliseconds();
+
+    // 조회 시간 측정
+    Timer lookup_timer;
+    size_t found_count = 0;
+    for (const auto& key : lookup_keys) {
+      try {
+        NormalDistribution& ndt = chunk_map.at(key);
+        found_count++;
+        // 컴파일러 최적화 방지를 위한 더미 작업
+        volatile int dummy = ndt.id;
+        (void)dummy;
+      } catch (const std::out_of_range&) {
+        // 키가 없는 경우 무시
+      }
+    }
+    double chunk_lookup_time = lookup_timer.elapsedMilliseconds();
+    std::cout << "ChunkHashMap 결과:" << std::endl;
+    std::cout << "삽입 시간: " << std::fixed << std::setprecision(2)
+              << chunk_insert_time << " ms" << std::endl;
+    std::cout << "조회 시간: " << std::fixed << std::setprecision(2)
+              << chunk_lookup_time << " ms" << std::endl;
+    std::cout << "찾은 요소 수: " << found_count << "/" << NUM_LOOKUPS
+              << std::endl;
+    std::cout << "맵 크기: " << chunk_map.size() << std::endl << std::endl;
+  }
+
+  // 4. 성능 비교 요약
   std::cout << "===== 성능 비교 요약 =====" << std::endl;
   std::cout << "각 테스트는 " << NUM_ELEMENTS << "개의 요소를 삽입하고 "
             << NUM_LOOKUPS << "개의 요소를 조회했습니다." << std::endl;
